@@ -1,0 +1,1800 @@
+import React, {
+  useState, useRef, useEffect, useMemo, useCallback, createContext, useContext,
+} from "react";
+import {
+  LayoutDashboard, Waypoints, Sparkles, ShieldCheck, FolderKanban, Settings,
+  Search, Command, ChevronRight, ArrowUpRight, Plus, Minus, Crosshair, Bell,
+  Microscope, Leaf, Activity, Quote, ArrowRight, X, Send, Globe, FileText,
+  ChevronLeft, Scale, Atom, Mail, Lock, LogOut, User, Menu, Loader2, Bookmark,
+  BookmarkCheck, Sun, Moon, AlertCircle, RotateCcw, Clock, Copy, Check,
+  Maximize2, CornerDownLeft, BookOpen,
+} from "lucide-react";
+
+/* ============================================================
+   1. DATA  (dataset unchanged)
+   ============================================================ */
+const T = {
+  culture:  { c: "#E0A458", label: "Culture",  Icon: Globe },
+  species:  { c: "#3FA66A", label: "Species",  Icon: Leaf },
+  compound: { c: "#6D5BD0", label: "Compound", Icon: Atom },
+  target:   { c: "#3B82C4", label: "Target",   Icon: Crosshair },
+  disease:  { c: "#E0607E", label: "Disease",  Icon: Activity },
+  evidence: { c: "#16A39A", label: "Evidence", Icon: FileText },
+};
+
+const NODES = [
+  { id: "cu-amazon", t: "culture", name: "Amazonian", sub: "Indigenous Amazon" },
+  { id: "cu-tcm",    t: "culture", name: "Chinese Medicine", sub: "TCM, 4th c. CE" },
+  { id: "cu-andean", t: "culture", name: "Andean / Quechua", sub: "South America" },
+  { id: "cu-tupi",   t: "culture", name: "Tupi", sub: "Coastal Brazil" },
+  { id: "cu-greek",  t: "culture", name: "Greek & European", sub: "Hippocratic folk" },
+  { id: "sp-chondro",   t: "species", name: "Chondrodendron tomentosum", sub: "Curare vine" },
+  { id: "sp-artemisia", t: "species", name: "Artemisia annua", sub: "Sweet wormwood" },
+  { id: "sp-cinchona",  t: "species", name: "Cinchona officinalis", sub: "Quina bark" },
+  { id: "sp-jaborandi", t: "species", name: "Pilocarpus jaborandi", sub: "Jaborandi" },
+  { id: "sp-salix",     t: "species", name: "Salix alba", sub: "White willow" },
+  { id: "cp-curare",      t: "compound", name: "d-Tubocurarine", sub: "Curare alkaloid" },
+  { id: "cp-artemisinin", t: "compound", name: "Artemisinin", sub: "Sesquiterpene lactone" },
+  { id: "cp-quinine",     t: "compound", name: "Quinine", sub: "Quinoline alkaloid" },
+  { id: "cp-pilocarpine", t: "compound", name: "Pilocarpine", sub: "Imidazole alkaloid" },
+  { id: "cp-salicylate",  t: "compound", name: "Salicylates", sub: "Salicin → salicylic acid" },
+  { id: "tg-nachr",  t: "target", name: "nAChR", sub: "Nicotinic ACh receptor" },
+  { id: "tg-machr",  t: "target", name: "mAChR M3", sub: "Muscarinic ACh receptor" },
+  { id: "tg-cox",    t: "target", name: "COX-1 / COX-2", sub: "Cyclooxygenase" },
+  { id: "tg-pfatp6", t: "target", name: "Heme / PfATP6", sub: "Plasmodium target" },
+  { id: "tg-hemoz",  t: "target", name: "Hemozoin", sub: "β-haematin crystal" },
+  { id: "di-surgery",  t: "disease", name: "Neuromuscular blockade", sub: "Surgical anaesthesia" },
+  { id: "di-malaria",  t: "disease", name: "Malaria", sub: "P. falciparum" },
+  { id: "di-glaucoma", t: "disease", name: "Glaucoma / Xerostomia", sub: "Cholinergic deficit" },
+  { id: "di-inflam",   t: "disease", name: "Inflammation / Thrombosis", sub: "COX pathway" },
+  { id: "di-alz",      t: "disease", name: "Alzheimer's", sub: "Predicted repurposing" },
+  { id: "ev-1", t: "evidence", name: "Klayman 1985", sub: "Artemisinin antimalarial" },
+  { id: "ev-2", t: "evidence", name: "Achan 2011", sub: "Quinine clinical review" },
+  { id: "ev-3", t: "evidence", name: "Bowman 2006", sub: "Curare & nAChR" },
+  { id: "ev-4", t: "evidence", name: "Vane 1971", sub: "Aspirin & COX inhibition" },
+];
+
+const LINKS = [
+  ["cu-amazon", "sp-chondro", "uses"],
+  ["cu-tcm", "sp-artemisia", "uses"],
+  ["cu-andean", "sp-cinchona", "uses"],
+  ["cu-tupi", "sp-jaborandi", "uses"],
+  ["cu-greek", "sp-salix", "uses"],
+  ["sp-chondro", "cp-curare", "contains"],
+  ["sp-artemisia", "cp-artemisinin", "contains"],
+  ["sp-cinchona", "cp-quinine", "contains"],
+  ["sp-jaborandi", "cp-pilocarpine", "contains"],
+  ["sp-salix", "cp-salicylate", "contains"],
+  ["cp-curare", "tg-nachr", "targets"],
+  ["cp-pilocarpine", "tg-machr", "targets"],
+  ["cp-salicylate", "tg-cox", "targets"],
+  ["cp-artemisinin", "tg-pfatp6", "targets"],
+  ["cp-quinine", "tg-hemoz", "targets"],
+  ["cp-artemisinin", "tg-cox", "predicted"],
+  ["tg-nachr", "di-surgery", "implicated"],
+  ["tg-machr", "di-glaucoma", "implicated"],
+  ["tg-machr", "di-alz", "predicted"],
+  ["tg-cox", "di-inflam", "implicated"],
+  ["tg-pfatp6", "di-malaria", "implicated"],
+  ["tg-hemoz", "di-malaria", "implicated"],
+  ["ev-1", "cp-artemisinin", "evidence"],
+  ["ev-2", "cp-quinine", "evidence"],
+  ["ev-3", "cp-curare", "evidence"],
+  ["ev-4", "cp-salicylate", "evidence"],
+];
+
+const HYPOTHESES = [
+  {
+    id: "h-malaria", score: 92, tier: "Strong",
+    title: "Independent cross-cultural convergence on the Plasmodium pathway",
+    disease: "di-malaria",
+    cultures: ["cu-andean", "cu-tcm"],
+    plants: ["sp-cinchona", "sp-artemisia"],
+    compounds: ["cp-quinine", "cp-artemisinin"],
+    targets: ["tg-hemoz", "tg-pfatp6"],
+    evidence: "High",
+    why: "Two unrelated traditions — Andean Cinchona bark and Chinese Artemisia annua — independently produced antimalarials acting on distinct points of the same parasite life cycle. Independent cultural arrival at one disease with corroborating clinical literature is the strongest convergence signal in the dataset.",
+    breakdown: { cultural: 95, phyto: 64, target: 90, evidence: 96 },
+  },
+  {
+    id: "h-cholinergic", score: 81, tier: "Strong",
+    title: "Opposing cholinergic poles suggest a tunable neuromuscular axis",
+    disease: "di-surgery",
+    cultures: ["cu-amazon", "cu-tupi"],
+    plants: ["sp-chondro", "sp-jaborandi"],
+    compounds: ["cp-curare", "cp-pilocarpine"],
+    targets: ["tg-nachr", "tg-machr"],
+    evidence: "Medium",
+    why: "Curare antagonises nicotinic receptors while pilocarpine agonises muscarinic receptors — two Amazonian remedies bracketing the cholinergic system from opposite ends. The paired antagonist/agonist structure is a candidate scaffold for controllable autonomic and neuromuscular modulation.",
+    breakdown: { cultural: 78, phyto: 72, target: 88, evidence: 70 },
+  },
+  {
+    id: "h-cardio", score: 85, tier: "Strong",
+    title: "Salicylate anti-inflammatory lineage extends to cardiovascular protection",
+    disease: "di-inflam",
+    cultures: ["cu-greek"],
+    plants: ["sp-salix"],
+    compounds: ["cp-salicylate"],
+    targets: ["tg-cox"],
+    evidence: "High",
+    why: "Willow-bark salicylates inhibit cyclooxygenase, the mechanism behind both anti-inflammatory and antithrombotic effects. A single deep tradition with strong mechanistic literature scores high on evidence and target plausibility despite low cultural breadth.",
+    breakdown: { cultural: 52, phyto: 80, target: 92, evidence: 94 },
+  },
+  {
+    id: "h-alz", score: 67, tier: "Exploratory",
+    title: "Pilocarpine muscarinic agonism as a cholinergic-deficit repurposing candidate",
+    disease: "di-alz",
+    cultures: ["cu-tupi"],
+    plants: ["sp-jaborandi"],
+    compounds: ["cp-pilocarpine"],
+    targets: ["tg-machr"],
+    evidence: "Low",
+    why: "The cholinergic hypothesis of Alzheimer's implicates muscarinic signalling, which pilocarpine directly engages. The link is mechanistically plausible but rests on a predicted target–disease edge with limited direct evidence — flagged exploratory.",
+    breakdown: { cultural: 40, phyto: 60, target: 74, evidence: 38 },
+  },
+  {
+    id: "h-artcox", score: 71, tier: "Exploratory",
+    title: "Artemisinin off-target activity against inflammatory COX signalling",
+    disease: "di-inflam",
+    cultures: ["cu-tcm"],
+    plants: ["sp-artemisia"],
+    compounds: ["cp-artemisinin"],
+    targets: ["tg-cox"],
+    evidence: "Low",
+    why: "Beyond its antimalarial role, artemisinin shows predicted secondary affinity for the COX pathway shared with salicylates. A predicted phytochemical overlap with an established anti-inflammatory mechanism makes this a watch-list hypothesis.",
+    breakdown: { cultural: 48, phyto: 70, target: 66, evidence: 42 },
+  },
+];
+
+const EVIDENCE = [
+  { id: "ev-1", title: "Qinghaosu (Artemisinin): an antimalarial drug from China", authors: "Klayman D.L.", year: 1985, venue: "Science", quality: "High", legal: "Public domain method", origin: "Traditional · TCM", supports: "Artemisinin → Heme/PfATP6" },
+  { id: "ev-2", title: "Quinine, an old anti-malarial drug in a modern world", authors: "Achan J. et al.", year: 2011, venue: "Malaria Journal", quality: "High", legal: "Open access", origin: "Traditional · Andean", supports: "Quinine → Hemozoin" },
+  { id: "ev-3", title: "Allosteric modulation of nicotinic receptors", authors: "Bowman W.C.", year: 2006, venue: "Br. J. Pharmacology", quality: "Medium", legal: "Licensed", origin: "Traditional · Amazonian", supports: "Curare → nAChR" },
+  { id: "ev-4", title: "Inhibition of prostaglandin synthesis by aspirin-like drugs", authors: "Vane J.R.", year: 1971, venue: "Nature New Biology", quality: "High", legal: "Licensed", origin: "Traditional · European", supports: "Salicylates → COX" },
+];
+
+const adj = (() => {
+  const m = {};
+  NODES.forEach((n) => (m[n.id] = new Set()));
+  LINKS.forEach(([a, b]) => { m[a].add(b); m[b].add(a); });
+  return m;
+})();
+const nodeById = Object.fromEntries(NODES.map((n) => [n.id, n]));
+
+function reachable(id, maxHops = 4) {
+  const seen = new Set([id]);
+  let frontier = [id];
+  for (let hop = 0; hop < maxHops && frontier.length; hop++) {
+    const next = [];
+    frontier.forEach((f) => adj[f].forEach((nb) => { if (!seen.has(nb)) { seen.add(nb); next.push(nb); } }));
+    frontier = next;
+  }
+  return seen;
+}
+
+/* ============================================================
+   2. PERSISTENCE  — per-user namespaced, with in-memory fallback
+   ============================================================ */
+const mem = new Map(); // fallback when window.storage is unavailable
+const hasStore = typeof window !== "undefined" && window.storage;
+
+async function rawGet(key, fallback) {
+  if (hasStore) {
+    try { const r = await window.storage.get(key); return r ? JSON.parse(r.value) : fallback; }
+    catch { /* fall through to mem */ }
+  }
+  return mem.has(key) ? mem.get(key) : fallback;
+}
+async function rawSet(key, value) {
+  mem.set(key, value);
+  if (hasStore) { try { await window.storage.set(key, JSON.stringify(value)); } catch {} }
+}
+async function rawDel(key) {
+  mem.delete(key);
+  if (hasStore) { try { await window.storage.delete(key); } catch {} }
+}
+
+const SESSION_KEY = "curare:session"; // global — identifies the active account
+function uidOf(user) {
+  const base = (user?.email || user?.name || "anon").toLowerCase().trim();
+  return base.replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "") || "anon";
+}
+// Scoped store bound to one user. All workspace data lives under this prefix.
+function makeDB(user) {
+  const ns = `curare:u:${uidOf(user)}:`;
+  return {
+    get: (k, fallback) => rawGet(ns + k, fallback),
+    set: (k, value) => rawSet(ns + k, value),
+    del: (k) => rawDel(ns + k),
+  };
+}
+const DBContext = createContext(null);
+const useDB = () => useContext(DBContext);
+
+const K = {
+  bookmarks: "bookmarks", chat: "chat", graph: "graph",
+  recent: "recent", prefs: "prefs", route: "last-route",
+};
+const DEFAULT_PREFS = { theme: "light", newEvidence: true, weeklyDigest: false };
+
+function useAuth() {
+  const [state, setState] = useState({ status: "checking", user: null });
+  useEffect(() => {
+    (async () => {
+      const sess = await rawGet(SESSION_KEY, null);
+      setState(sess ? { status: "in", user: sess } : { status: "guest", user: null });
+    })();
+  }, []);
+  const login = useCallback(async (user) => {
+    await rawSet(SESSION_KEY, user);
+    setState({ status: "in", user });
+  }, []);
+  const logout = useCallback(async () => {
+    await rawDel(SESSION_KEY);
+    setState({ status: "guest", user: null });
+  }, []);
+  return { ...state, login, logout };
+}
+
+function useRecentActivity(db) {
+  const [items, setItems] = useState([]);
+  useEffect(() => { (async () => setItems(await db.get(K.recent, [])))(); }, [db]);
+  const log = useCallback((label, meta) => {
+    setItems((prev) => {
+      const next = [{ label, meta, ts: Date.now() }, ...prev].slice(0, 8);
+      db.set(K.recent, next);
+      return next;
+    });
+  }, [db]);
+  return { items, log };
+}
+
+/* ============================================================
+   3. CSS  — refined tokens, real light/dark, standardized parts
+   ============================================================ */
+const CSS = `
+@import url('https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600&family=Inter:wght@400;450;500;600;700&display=swap');
+
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --bg:#F6F4EF; --surface:#FFFFFF; --surface2:#FBF9F4; --soft:#EFEBE2;
+  --ink:#16191D; --ink2:#41454B; --ink3:#8A8E96;
+  --line:#E7E3D9; --line2:#D8D3C6;
+  --accent:#6D5BD0; --accent-ink:#5746B4; --accent-soft:#ECE9FB;
+  --accent2:#14938B; --accent2-soft:#E1F2F0;
+  --good:#2F8A4F; --warn:#BD7A1B; --bad:#C0392B;
+  --edge:rgba(64,58,46,.30); --edge-faint:rgba(64,58,46,.10);
+  --side-bg:#11141A; --side-line:rgba(255,255,255,.08);
+  --side-ink:#C7CBD3; --side-ink-dim:#6B717C; --side-ink-bright:#F2F3F6;
+  --r-sm:10px; --r-md:14px; --r-lg:16px; --r-xl:22px;
+  --shadow-sm:0 1px 2px rgba(20,18,12,.05);
+  --shadow-md:0 6px 22px -8px rgba(20,18,12,.16);
+  --shadow-lg:0 24px 60px -16px rgba(20,18,12,.28);
+  --sidebar-w:248px;
+  --font-display:'Fraunces','Iowan Old Style',Georgia,serif;
+  --font-body:'Inter',-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;
+  --font-mono:'SF Mono','Fira Code',ui-monospace,monospace;
+}
+[data-theme="dark"]{
+  --bg:#0D1014; --surface:#14181E; --surface2:#181D24; --soft:#1F242C;
+  --ink:#ECEEF1; --ink2:#AEB4BC; --ink3:#79808A;
+  --line:#242A32; --line2:#2F3640;
+  --accent:#8A7AE8; --accent-ink:#A99CF0; --accent-soft:#221E3B;
+  --accent2:#2CB6AC; --accent2-soft:#0F2F2C;
+  --good:#4CAE72; --warn:#D29A45; --bad:#E26D5E;
+  --edge:rgba(214,220,230,.22); --edge-faint:rgba(214,220,230,.07);
+  --side-bg:#0A0C10; --side-line:rgba(255,255,255,.07);
+  --shadow-md:0 6px 22px -8px rgba(0,0,0,.5);
+  --shadow-lg:0 24px 60px -16px rgba(0,0,0,.6);
+}
+html,body,#root{height:100%}
+body{font-family:var(--font-body);-webkit-font-smoothing:antialiased;text-rendering:optimizeLegibility}
+.cu-root{height:100%;background:var(--bg);color:var(--ink);font-family:var(--font-body);font-size:14px;line-height:1.55}
+.cu-shell{display:grid;grid-template-columns:var(--sidebar-w) 1fr;height:100%;overflow:hidden}
+.scroll{overflow-y:auto;height:100%}
+.scroll::-webkit-scrollbar{width:10px;height:10px}
+.scroll::-webkit-scrollbar-thumb{background:var(--line2);border-radius:9px;border:3px solid transparent;background-clip:padding-box}
+.scroll::-webkit-scrollbar-thumb:hover{background:var(--ink3)}
+
+.disp{font-family:var(--font-display);letter-spacing:-.012em;font-weight:500}
+.mono{font-family:var(--font-mono);font-feature-settings:"tnum" 1}
+.eyebrow{font-family:var(--font-body);font-size:10.5px;font-weight:600;letter-spacing:.13em;text-transform:uppercase;color:var(--ink3)}
+.eyebrow.on-dark{color:var(--side-ink-dim)}
+
+.cu-card{background:var(--surface);border:1px solid var(--line);border-radius:var(--r-lg)}
+.hoverable{transition:border-color .16s ease,box-shadow .16s ease,transform .16s ease}
+.hoverable:hover{border-color:var(--line2);box-shadow:var(--shadow-md);transform:translateY(-1px)}
+
+.chip{display:inline-flex;align-items:center;gap:5px;padding:3px 9px;border-radius:999px;border:1px solid var(--line);font-size:11.5px;font-weight:500;line-height:1.4;white-space:nowrap;vertical-align:middle}
+
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:7px;padding:8px 14px;border-radius:var(--r-sm);border:1px solid var(--line2);background:var(--surface);color:var(--ink);font-family:inherit;font-size:13px;font-weight:500;cursor:pointer;transition:background .14s,border-color .14s,box-shadow .14s;white-space:nowrap}
+.btn:hover{background:var(--soft)}
+.btn:active{transform:translateY(.5px)}
+.btn:disabled{opacity:.5;cursor:not-allowed}
+.btn:focus-visible{outline:none;box-shadow:0 0 0 3px var(--accent-soft)}
+.btn-pri{background:var(--accent);color:#fff;border-color:transparent}
+.btn-pri:hover{background:var(--accent-ink)}
+.btn-ghost{background:transparent;border-color:transparent;color:var(--ink2)}
+.btn-ghost:hover{background:var(--soft)}
+.btn-block{width:100%}
+.btn-sm{padding:6px 11px;font-size:12.5px}
+
+.iconbtn{display:inline-flex;align-items:center;justify-content:center;width:34px;height:34px;border-radius:var(--r-sm);border:1px solid var(--line2);background:var(--surface);color:var(--ink2);cursor:pointer;transition:background .14s,color .14s;flex-shrink:0}
+.iconbtn:hover{background:var(--soft);color:var(--ink)}
+.iconbtn:focus-visible{outline:none;box-shadow:0 0 0 3px var(--accent-soft)}
+.iconbtn.sm{width:28px;height:28px;border-radius:8px}
+
+.seg{display:inline-flex;background:var(--soft);border:1px solid var(--line);border-radius:var(--r-sm);padding:3px;gap:2px}
+.seg button{border:none;background:transparent;color:var(--ink2);font-family:inherit;font-size:12.5px;font-weight:500;padding:5px 13px;border-radius:7px;cursor:pointer;transition:background .14s,color .14s}
+.seg button:hover{color:var(--ink)}
+.seg button.on{background:var(--surface);color:var(--ink);box-shadow:var(--shadow-sm)}
+
+.bare{background:none;border:none;outline:none;font-family:inherit;font-size:14px;color:var(--ink);width:100%}
+.bare::placeholder{color:var(--ink3)}
+.divider{height:1px;background:var(--line)}
+.kbd{display:inline-flex;align-items:center;padding:2px 6px;border-radius:6px;border:1px solid var(--line2);background:var(--surface2);font-size:11px;font-family:var(--font-body);color:var(--ink3);white-space:nowrap}
+.label{display:block;font-size:12.5px;font-weight:600;color:var(--ink2);margin-bottom:6px}
+.field{display:flex;align-items:center;gap:10px;padding:10px 13px;border:1px solid var(--line2);border-radius:var(--r-sm);background:var(--surface);transition:border-color .14s,box-shadow .14s}
+.field input,.field textarea{flex:1;background:none;border:none;outline:none;font-family:inherit;font-size:13.5px;color:var(--ink)}
+.field input::placeholder,.field textarea::placeholder{color:var(--ink3)}
+.field:focus-within{border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-soft)}
+
+.navitem{display:flex;align-items:center;gap:10px;padding:9px 12px;border-radius:var(--r-sm);cursor:pointer;font-size:13.5px;color:var(--ink2);transition:background .12s}
+.navitem:hover{background:var(--soft)}
+
+.s-navitem{position:relative;display:flex;align-items:center;gap:11px;padding:9px 12px;border-radius:var(--r-sm);cursor:pointer;font-size:13px;font-weight:450;color:var(--side-ink);transition:background .14s,color .14s}
+.s-navitem:hover{background:rgba(255,255,255,.06);color:var(--side-ink-bright)}
+.s-navitem.on{background:rgba(255,255,255,.07);color:var(--side-ink-bright);font-weight:550}
+.s-navitem.on::before{content:"";position:absolute;left:-12px;top:50%;transform:translateY(-50%);width:3px;height:18px;border-radius:0 3px 3px 0;background:linear-gradient(180deg,var(--accent),var(--accent2))}
+
+.avatar{border-radius:50%;background:linear-gradient(135deg,#6D5BD0,#16A39A);color:#fff;display:grid;place-items:center;font-weight:600;flex-shrink:0;font-family:var(--font-body)}
+.switch{display:inline-flex;align-items:center;width:40px;height:23px;border-radius:12px;background:var(--line2);cursor:pointer;padding:2px;transition:background .2s;flex-shrink:0}
+.switch.on{background:var(--accent)}
+.switch i{display:block;width:19px;height:19px;border-radius:50%;background:#fff;box-shadow:var(--shadow-sm);transition:transform .2s}
+.switch.on i{transform:translateX(17px)}
+
+.spin{animation:spin .7s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+.fade-in{animation:fadeIn .16s ease}
+@keyframes fadeIn{from{opacity:0;transform:translateY(-4px)}to{opacity:1;transform:none}}
+.rise{animation:rise .26s cubic-bezier(.2,.7,.3,1) both}
+@keyframes rise{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
+
+.cu-sidebar{background:var(--side-bg);padding:18px 12px;display:flex;flex-direction:column;gap:3px;height:100%;overflow-y:auto}
+.menubtn{display:none}
+.drawer-scrim{display:none;position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:30}
+
+.auth-shell{display:grid;grid-template-columns:1.05fr 1fr;min-height:100vh}
+.cite{display:inline-flex;align-items:center;justify-content:center;min-width:17px;height:17px;padding:0 4px;margin:0 1px;border-radius:5px;background:var(--accent-soft);color:var(--accent-ink);font-size:10.5px;font-weight:600;font-family:var(--font-body);cursor:pointer;vertical-align:1px;transition:background .12s}
+.cite:hover{background:var(--accent);color:#fff}
+
+.chat-row{display:flex;gap:11px;max-width:760px;animation:rise .26s ease both}
+.chat-row.me{flex-direction:row-reverse;align-self:flex-end}
+.chat-av{width:28px;height:28px;border-radius:8px;display:grid;place-items:center;flex-shrink:0;margin-top:2px}
+.bubble-me{background:var(--accent-soft);color:var(--ink);border-radius:14px 14px 4px 14px;padding:10px 14px;font-size:13.5px;line-height:1.6}
+.bubble-ai{color:var(--ink);font-size:14px;line-height:1.72}
+.bubble-ai p{margin:0 0 9px}.bubble-ai p:last-child{margin:0}
+
+.suggested-chip{display:inline-flex;align-items:center;gap:7px;padding:9px 14px;border-radius:var(--r-sm);border:1px solid var(--line2);background:var(--surface);font-size:12.5px;cursor:pointer;transition:background .14s,border-color .14s,color .14s;color:var(--ink2);text-align:left}
+.suggested-chip:hover{background:var(--accent-soft);border-color:transparent;color:var(--accent-ink)}
+
+@media(max-width:920px){
+  .dash-2{grid-template-columns:1fr !important}
+  .stat-2{grid-template-columns:1fr 1fr !important}
+  .grid-2{grid-template-columns:1fr !important}
+}
+@media(max-width:760px){
+  .auth-shell{grid-template-columns:1fr}
+  .auth-art{display:none !important}
+  .cu-shell{grid-template-columns:1fr}
+  .cu-sidebar{display:none;position:fixed;left:0;top:0;bottom:0;width:var(--sidebar-w);z-index:40;transform:translateX(-100%);transition:transform .24s ease}
+  .cu-sidebar.open{display:flex;transform:translateX(0)}
+  .drawer-scrim.open{display:block}
+  .menubtn{display:inline-flex !important}
+  .graph-side{position:absolute !important;right:0;top:0;bottom:0;width:300px !important;max-width:88vw;box-shadow:var(--shadow-lg);z-index:6}
+  .pagepad{padding:18px !important}
+}
+@media(prefers-reduced-motion:reduce){*{animation-duration:.001ms !important;transition-duration:.001ms !important}}
+`;
+
+/* ============================================================
+   4. PRIMITIVES + shared style helpers
+   ============================================================ */
+function hexA(hex, a) {
+  const h = hex.replace("#", "");
+  const r = parseInt(h.slice(0, 2), 16), g = parseInt(h.slice(2, 4), 16), b = parseInt(h.slice(4, 6), 16);
+  return `rgba(${r},${g},${b},${a})`;
+}
+const SEMANTIC = { good: "#3D9E5E", warn: "#C58A2A", accent: "#6D5BD0", accent2: "#1AA59B", muted: "#8A8E96" };
+function tierStyle(tier) {
+  const c = tier === "Strong" ? SEMANTIC.good : SEMANTIC.warn;
+  return { color: c, background: hexA(c, 0.13), borderColor: "transparent" };
+}
+function qualityColor(q) { return q === "High" ? SEMANTIC.good : q === "Medium" ? SEMANTIC.warn : SEMANTIC.muted; }
+
+function initials(name = "") {
+  return name.trim().split(/\s+/).slice(0, 2).map((w) => w[0]?.toUpperCase() || "").join("") || "?";
+}
+function Avatar({ name, size = 34 }) {
+  return <div className="avatar" style={{ width: size, height: size, fontSize: size * 0.36 }}>{initials(name)}</div>;
+}
+
+function ScoreGauge({ value, size = 64, stroke = 7, showLabel = true }) {
+  const r = (size - stroke) / 2;
+  const c = 2 * Math.PI * r;
+  const col = value >= 80 ? "var(--good)" : value >= 70 ? "var(--accent)" : "var(--warn)";
+  return (
+    <div style={{ position: "relative", width: size, height: size, flexShrink: 0 }}>
+      <svg width={size} height={size}>
+        <circle cx={size / 2} cy={size / 2} r={r} fill="none" stroke="var(--soft)" strokeWidth={stroke} />
+        <circle cx={size / 2} cy={size / 2} r={r} fill="none" stroke={col} strokeWidth={stroke}
+          strokeDasharray={c} strokeDashoffset={c - (value / 100) * c} strokeLinecap="round"
+          transform={`rotate(-90 ${size / 2} ${size / 2})`}
+          style={{ transition: "stroke-dashoffset 1s cubic-bezier(.3,1,.3,1)" }} />
+      </svg>
+      {showLabel && (
+        <div style={{ position: "absolute", inset: 0, display: "grid", placeItems: "center" }}>
+          <div className="mono" style={{ fontWeight: 600, fontSize: size * 0.3, color: col, lineHeight: 1 }}>{value}</div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function TypeChip({ t, small }) {
+  const d = T[t]; const Icon = d.Icon;
+  return (
+    <span className="chip" style={{ color: d.c, borderColor: hexA(d.c, 0.28), background: hexA(d.c, 0.1), fontSize: small ? 10.5 : 11.5 }}>
+      <Icon size={small ? 11 : 12} /> {d.label}
+    </span>
+  );
+}
+
+function NodeRef({ id, onClick }) {
+  const n = nodeById[id]; if (!n) return null; const d = T[n.t];
+  return (
+    <span onClick={onClick ? () => onClick(id) : undefined} className="chip"
+      style={{ cursor: onClick ? "pointer" : "default", borderColor: hexA(d.c, 0.26), background: hexA(d.c, 0.07), color: "var(--ink2)", transition: "background .12s" }}
+      onMouseEnter={onClick ? (e) => (e.currentTarget.style.background = hexA(d.c, 0.15)) : undefined}
+      onMouseLeave={onClick ? (e) => (e.currentTarget.style.background = hexA(d.c, 0.07)) : undefined}>
+      <span style={{ width: 7, height: 7, borderRadius: 9, background: d.c, flexShrink: 0 }} /> {n.name}
+    </span>
+  );
+}
+
+function Bar({ value, color = "var(--accent)" }) {
+  return (
+    <div style={{ height: 6, background: "var(--soft)", borderRadius: 6, overflow: "hidden" }}>
+      <div style={{ width: value + "%", height: "100%", background: color, borderRadius: 6, transition: "width .9s cubic-bezier(.3,1,.3,1)" }} />
+    </div>
+  );
+}
+
+function SourceBadge({ q }) {
+  const c = qualityColor(q);
+  return <span className="chip" style={{ color: c, background: hexA(c, 0.12), borderColor: "transparent" }}><ShieldCheck size={12} /> {q}</span>;
+}
+
+function SectionHeader({ eyebrow, title, action }) {
+  return (
+    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-end", marginBottom: 16, gap: 12, flexWrap: "wrap" }}>
+      <div>
+        {eyebrow && <div className="eyebrow" style={{ marginBottom: 5 }}>{eyebrow}</div>}
+        <h2 className="disp" style={{ fontSize: 19, fontWeight: 600, margin: 0 }}>{title}</h2>
+      </div>
+      {action}
+    </div>
+  );
+}
+
+function PageHead({ eyebrow, title, sub, action }) {
+  return (
+    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-end", marginBottom: 24, gap: 16, flexWrap: "wrap" }}>
+      <div style={{ minWidth: 0 }}>
+        {eyebrow && <div className="eyebrow" style={{ marginBottom: 7 }}>{eyebrow}</div>}
+        <h1 className="disp" style={{ fontSize: 28, fontWeight: 500, margin: 0, lineHeight: 1.1 }}>{title}</h1>
+        {sub && <p style={{ color: "var(--ink3)", margin: "8px 0 0", fontSize: 14, maxWidth: 560 }}>{sub}</p>}
+      </div>
+      {action && <div style={{ display: "flex", gap: 8, flexShrink: 0 }}>{action}</div>}
+    </div>
+  );
+}
+
+function EmptyState({ icon: Icon, title, body, action }) {
+  return (
+    <div className="cu-card" style={{ padding: "44px 30px", textAlign: "center", color: "var(--ink3)" }}>
+      <div style={{ width: 48, height: 48, borderRadius: 14, background: "var(--accent-soft)", color: "var(--accent)", display: "grid", placeItems: "center", margin: "0 auto 16px" }}>
+        <Icon size={22} />
+      </div>
+      <div className="disp" style={{ fontSize: 16, fontWeight: 600, color: "var(--ink)", marginBottom: 6 }}>{title}</div>
+      {body && <p style={{ fontSize: 13.5, lineHeight: 1.6, margin: "0 auto", maxWidth: 400 }}>{body}</p>}
+      {action && <div style={{ marginTop: 18 }}>{action}</div>}
+    </div>
+  );
+}
+
+function Switch({ on, onClick }) {
+  return <span className={"switch " + (on ? "on" : "off")} onClick={onClick} role="switch" aria-checked={on}><i /></span>;
+}
+
+function timeAgo(ts) {
+  const s = Math.max(1, Math.round((Date.now() - ts) / 1000));
+  if (s < 60) return s + "s ago";
+  const m = Math.round(s / 60); if (m < 60) return m + "m ago";
+  const h = Math.round(m / 60); if (h < 24) return h + "h ago";
+  return Math.round(h / 24) + "d ago";
+}
+
+/* ============================================================
+   5. AUTH SCREEN  — no <form> (sandboxed iframes block native submit)
+   ============================================================ */
+// Quiet, meaningful hero: the real 5-lane convergence motif, not a random spiral.
+function ConvergenceMotif() {
+  const lanes = ["culture", "species", "compound", "target", "disease"];
+  const cols = lanes.map((t, i) => ({ t, x: 60 + i * 95, c: T[t].c }));
+  const dots = useMemo(() => cols.flatMap((col, ci) =>
+    Array.from({ length: 5 }, (_, ri) => ({
+      x: col.x + (((ci * 7 + ri * 13) % 5) - 2) * 5,
+      y: 90 + ri * 74 + (((ci + ri) % 3) - 1) * 8,
+      r: ri === 2 ? 6 : 4, c: col.c, key: ci + "-" + ri,
+    }))), []);
+  const curves = useMemo(() => {
+    const out = [];
+    for (let ci = 0; ci < cols.length - 1; ci++) {
+      for (let k = 0; k < 4; k++) {
+        const a = dots[ci * 5 + ((k * 2) % 5)], b = dots[(ci + 1) * 5 + ((k * 3 + 1) % 5)];
+        out.push({ a, b, key: ci + "c" + k });
+      }
+    }
+    return out;
+  }, [dots]);
+  return (
+    <svg viewBox="0 0 500 470" width="100%" height="100%" preserveAspectRatio="xMidYMid slice" style={{ opacity: 0.9 }}>
+      {curves.map(({ a, b, key }) => {
+        const mx = (a.x + b.x) / 2;
+        return <path key={key} d={`M${a.x} ${a.y} C ${mx} ${a.y}, ${mx} ${b.y}, ${b.x} ${b.y}`}
+          fill="none" stroke="rgba(255,255,255,.16)" strokeWidth="1" />;
+      })}
+      {dots.map((d) => (
+        <circle key={d.key} cx={d.x} cy={d.y} r={d.r} fill={d.c} opacity={0.92}
+          stroke="rgba(255,255,255,.18)" strokeWidth="1" />
+      ))}
+    </svg>
+  );
+}
+
+function LoginScreen({ onLogin }) {
+  const [mode, setMode] = useState("signin");
+  const [name, setName] = useState("");
+  const [email, setEmail] = useState("");
+  const [pw, setPw] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState("");
+
+  const submit = async () => {
+    if (busy) return;
+    if (!email.trim() || !pw.trim()) { setErr("Enter your email and password to continue."); return; }
+    if (mode === "signup" && !name.trim()) { setErr("Add your name so we can set up your workspace."); return; }
+    setErr(""); setBusy(true);
+    await new Promise((r) => setTimeout(r, 450));
+    onLogin({ name: name.trim() || email.split("@")[0], email: email.trim(), provider: "email" });
+  };
+  const google = async () => {
+    if (busy) return;
+    setBusy(true);
+    await new Promise((r) => setTimeout(r, 450));
+    onLogin({ name: "Pesquisadora", email: "you@curare.ai", provider: "google" });
+  };
+  const onKey = (e) => { if (e.key === "Enter") submit(); };
+
+  return (
+    <div className="cu-root">
+      <style>{CSS}</style>
+      <div className="auth-shell" style={{ background: "var(--bg)" }}>
+        <div className="auth-art" style={{ position: "relative", background: "linear-gradient(165deg,#15183A 0%,#122E2D 100%)", color: "#fff", padding: 48, display: "flex", flexDirection: "column", justifyContent: "space-between", overflow: "hidden" }}>
+          <div style={{ position: "absolute", inset: 0, maskImage: "linear-gradient(180deg,rgba(0,0,0,.5),rgba(0,0,0,.95))" }}><ConvergenceMotif /></div>
+          <div style={{ position: "relative", display: "flex", alignItems: "center", gap: 11 }}>
+            <div style={{ width: 36, height: 36, borderRadius: 11, background: "linear-gradient(135deg,#6D5BD0,#16A39A)", display: "grid", placeItems: "center" }}><Atom size={19} color="#fff" /></div>
+            <div className="disp" style={{ fontWeight: 600, fontSize: 18 }}>Curare<span style={{ color: "#A99CF0" }}>.AI</span></div>
+          </div>
+          <div style={{ position: "relative", maxWidth: 400 }}>
+            <h1 className="disp" style={{ fontSize: 33, fontWeight: 500, lineHeight: 1.18, margin: "0 0 16px", letterSpacing: "-.02em" }}>When two unrelated traditions point to the same molecule, that's a lead.</h1>
+            <p style={{ fontSize: 14.5, lineHeight: 1.7, color: "rgba(255,255,255,.74)" }}>Curare maps cultural, phytochemical and pharmacological convergence across ethnobotanical knowledge — every link traced to its source.</p>
+          </div>
+          <div className="mono" style={{ position: "relative", fontSize: 11.5, color: "rgba(255,255,255,.5)", display: "flex", gap: 16 }}>
+            <span>24 nodes</span><span>27 relationships</span><span>4 sources</span>
+          </div>
+        </div>
+
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "center", padding: 32, minHeight: "100vh" }}>
+          <div style={{ width: "100%", maxWidth: 372 }}>
+            <div className="disp" style={{ fontSize: 24, fontWeight: 600, marginBottom: 6 }}>{mode === "signin" ? "Welcome back" : "Create your account"}</div>
+            <p style={{ fontSize: 13.5, color: "var(--ink3)", marginBottom: 26 }}>{mode === "signin" ? "Sign in to your discovery workspace." : "Set up access to your discovery workspace."}</p>
+
+            <button className="btn btn-block" style={{ marginBottom: 14, padding: "11px 13px" }} onClick={google} disabled={busy}>
+              <svg width="16" height="16" viewBox="0 0 18 18"><path fill="#4285F4" d="M17.6 9.2c0-.64-.06-1.25-.16-1.84H9v3.48h4.84a4.14 4.14 0 0 1-1.8 2.72v2.26h2.9c1.7-1.57 2.66-3.88 2.66-6.62Z" /><path fill="#34A853" d="M9 18c2.43 0 4.47-.8 5.96-2.18l-2.9-2.26c-.8.55-1.84.86-3.06.86-2.36 0-4.36-1.6-5.08-3.74H.92v2.34A9 9 0 0 0 9 18Z" /><path fill="#FBBC05" d="M3.92 10.68a5.4 5.4 0 0 1 0-3.36V5h-3a9 9 0 0 0 0 8l3-2.32Z" /><path fill="#EA4335" d="M9 3.58c1.32 0 2.5.46 3.44 1.34l2.58-2.58A8.95 8.95 0 0 0 9 0 9 9 0 0 0 .92 5l3 2.32C4.64 5.18 6.64 3.58 9 3.58Z" /></svg>
+              Continue with Google
+            </button>
+            <div style={{ display: "flex", alignItems: "center", gap: 10, margin: "18px 0", color: "var(--ink3)", fontSize: 12 }}>
+              <div className="divider" style={{ flex: 1 }} /> or with email <div className="divider" style={{ flex: 1 }} />
+            </div>
+
+            {mode === "signup" && (
+              <div style={{ marginBottom: 14 }}>
+                <label className="label">Name</label>
+                <div className="field"><User size={15} color="var(--ink3)" /><input value={name} onChange={(e) => setName(e.target.value)} onKeyDown={onKey} placeholder="Your name" /></div>
+              </div>
+            )}
+            <div style={{ marginBottom: 14 }}>
+              <label className="label">Email</label>
+              <div className="field"><Mail size={15} color="var(--ink3)" /><input type="email" value={email} onChange={(e) => setEmail(e.target.value)} onKeyDown={onKey} placeholder="you@university.edu" /></div>
+            </div>
+            <div style={{ marginBottom: 8 }}>
+              <label className="label">Password</label>
+              <div className="field"><Lock size={15} color="var(--ink3)" /><input type="password" value={pw} onChange={(e) => setPw(e.target.value)} onKeyDown={onKey} placeholder="••••••••" /></div>
+            </div>
+            {err && <div style={{ display: "flex", gap: 7, alignItems: "flex-start", color: "var(--bad)", fontSize: 12.5, margin: "10px 0" }}><AlertCircle size={14} style={{ flexShrink: 0, marginTop: 1 }} /> {err}</div>}
+            <button className="btn btn-pri btn-block" style={{ marginTop: 14, padding: "11px 13px" }} disabled={busy} onClick={submit}>
+              {busy ? <Loader2 size={15} className="spin" /> : mode === "signin" ? "Sign in" : "Create account"}
+            </button>
+
+            <div style={{ textAlign: "center", marginTop: 20, fontSize: 13, color: "var(--ink3)" }}>
+              {mode === "signin" ? "New to Curare.AI? " : "Already have an account? "}
+              <span style={{ color: "var(--accent-ink)", fontWeight: 600, cursor: "pointer" }} onClick={() => { setMode(mode === "signin" ? "signup" : "signin"); setErr(""); }}>
+                {mode === "signin" ? "Create an account" : "Sign in"}
+              </span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/* ============================================================
+   6. DISCOVERY GRAPH  — layered convergence map
+   ============================================================ */
+const LANES = ["culture", "species", "compound", "target", "disease"];
+const COL_X = { culture: 0.11, species: 0.30, compound: 0.5, target: 0.70, disease: 0.89, evidence: 0.5 };
+const ROW_Y = { culture: 0.30, species: 0.42, compound: 0.5, target: 0.58, disease: 0.70, evidence: 0.9 };
+const REL_LABEL = { uses: "uses", contains: "contains", targets: "targets", implicated: "implicated in", predicted: "predicted", evidence: "evidence" };
+
+function useForce(dim) {
+  const [, setTick] = useState(0);
+  const sim = useRef({ nodes: [], links: [], alpha: 0, dragId: null });
+  const dimRef = useRef(dim);
+  const running = useRef(false);
+  const raf = useRef(0);
+  dimRef.current = dim;
+
+  const loop = useCallback(() => {
+    const { nodes: ns, links: ls } = sim.current;
+    const W = dimRef.current.w, H = dimRef.current.h;
+    let alpha = sim.current.alpha;
+    if (alpha < 0.004 || !W) { sim.current.alpha = 0; running.current = false; setTick((t) => t + 1); return; }
+    alpha *= 0.984;
+    ls.forEach(({ source: si, target: ti }) => {
+      const s = ns[si], t = ns[ti];
+      const dx = t.x - s.x, dy = t.y - s.y;
+      const d = Math.sqrt(dx * dx + dy * dy) || 1;
+      const f = ((d - 96) / d) * 0.9 * alpha;
+      s.vx += dx * f; s.vy += dy * f; t.vx -= dx * f; t.vy -= dy * f;
+    });
+    for (let i = 0; i < ns.length; i++) {
+      for (let j = i + 1; j < ns.length; j++) {
+        const dx = ns[j].x - ns[i].x, dy = ns[j].y - ns[i].y;
+        const d2 = dx * dx + dy * dy + 1;
+        const f = 22 / d2;
+        ns[i].vx -= dx * f; ns[i].vy -= dy * f; ns[j].vx += dx * f; ns[j].vy += dy * f;
+      }
+    }
+    ns.forEach((n) => {
+      n.vx += (COL_X[n.t] * W - n.x) * 0.085 * alpha;
+      n.vy += (ROW_Y[n.t] * H - n.y) * 0.045 * alpha;
+    });
+    ns.forEach((n) => {
+      if (n.id === sim.current.dragId) { n.vx = n.vy = 0; return; }
+      n.vx *= 0.82; n.vy *= 0.82;
+      n.x = Math.max(26, Math.min(W - 26, n.x + n.vx));
+      n.y = Math.max(40, Math.min(H - 30, n.y + n.vy));
+    });
+    sim.current.alpha = alpha;
+    setTick((t) => t + 1);
+    raf.current = requestAnimationFrame(loop);
+  }, []);
+
+  const kick = useCallback((a = 0.4) => {
+    sim.current.alpha = Math.max(sim.current.alpha, a);
+    if (!running.current) { running.current = true; raf.current = requestAnimationFrame(loop); }
+  }, [loop]);
+
+  useEffect(() => {
+    if (!dim.w || !dim.h) return;
+    const W = dim.w, H = dim.h;
+    const prev = Object.fromEntries(sim.current.nodes.map((n) => [n.id, n]));
+    const nodes = NODES.map((n) => {
+      const p = prev[n.id];
+      return p ? { ...n, x: p.x, y: p.y, vx: 0, vy: 0 }
+        : { ...n, x: COL_X[n.t] * W + (Math.random() - 0.5) * 30, y: ROW_Y[n.t] * H + (Math.random() - 0.5) * 60, vx: 0, vy: 0 };
+    });
+    const idx = Object.fromEntries(nodes.map((n, i) => [n.id, i]));
+    const links = LINKS.map(([a, b, rel]) => ({ source: idx[a], target: idx[b], rel }));
+    sim.current = { nodes, links, alpha: 1, dragId: null };
+    kick(1);
+    return () => cancelAnimationFrame(raf.current);
+  }, [dim.w, dim.h, kick]);
+
+  return { sim, kick };
+}
+
+function curve(s, t, sign) {
+  const mx = (s.x + t.x) / 2, my = (s.y + t.y) / 2;
+  const dx = t.x - s.x, dy = t.y - s.y;
+  const len = Math.sqrt(dx * dx + dy * dy) || 1;
+  const off = Math.max(8, Math.min(54, len * 0.16)) * sign;
+  const cx = mx + (-dy / len) * off, cy = my + (dx / len) * off;
+  return { d: `M${s.x} ${s.y} Q ${cx} ${cy} ${t.x} ${t.y}`, cx, cy };
+}
+
+function ForceGraph({ selectedId, onSelect, typeFilter, view, setView }) {
+  const ref = useRef();
+  const [dim, setDim] = useState({ w: 0, h: 0 });
+  const [hoverId, setHoverId] = useState(null);
+  const press = useRef(null); // {mode:'pan'|'drag', id, sx, sy, ox, oy, moved}
+  const { sim, kick } = useForce(dim);
+
+  useEffect(() => {
+    const el = ref.current; if (!el) return;
+    const ro = new ResizeObserver(([e]) => setDim({ w: e.contentRect.width, h: e.contentRect.height }));
+    ro.observe(el); return () => ro.disconnect();
+  }, []);
+
+  const screenToWorld = (cx, cy) => ({ x: (cx - view.x) / view.k, y: (cy - view.y) / view.k });
+  const nearestNode = (wx, wy, maxD = 22) => {
+    let best = null, bd = maxD * maxD / (view.k * view.k);
+    sim.current.nodes.forEach((n) => {
+      if (!typeFilter.includes(n.t)) return;
+      const d2 = (n.x - wx) ** 2 + (n.y - wy) ** 2;
+      if (d2 < bd) { bd = d2; best = n.id; }
+    });
+    return best;
+  };
+
+  // fly to selection
+  useEffect(() => {
+    if (!selectedId || !dim.w) return;
+    const id = requestAnimationFrame(() => {
+      const n = sim.current.nodes.find((z) => z.id === selectedId);
+      if (!n) return;
+      setView((v) => { const k = Math.max(v.k, 1.25); return { k, x: dim.w / 2 - n.x * k, y: dim.h / 2 - n.y * k }; });
+    });
+    return () => cancelAnimationFrame(id);
+  }, [selectedId, dim.w]); // eslint-disable-line
+
+  const onDown = (e) => {
+    if (e.button !== 0) return;
+    const rect = ref.current.getBoundingClientRect();
+    const sx = e.clientX - rect.left, sy = e.clientY - rect.top;
+    const wp = screenToWorld(sx, sy);
+    const id = nearestNode(wp.x, wp.y);
+    if (id) { sim.current.dragId = id; press.current = { mode: "drag", id, sx, sy, moved: 0 }; }
+    else press.current = { mode: "pan", ox: view.x - sx, oy: view.y - sy, sx, sy, moved: 0 };
+  };
+  const onMove = (e) => {
+    const rect = ref.current?.getBoundingClientRect(); if (!rect) return;
+    const sx = e.clientX - rect.left, sy = e.clientY - rect.top;
+    const p = press.current;
+    if (p) {
+      p.moved += Math.abs(sx - p.sx) + Math.abs(sy - p.sy);
+      if (p.mode === "pan") setView((v) => ({ ...v, x: p.ox + sx, y: p.oy + sy }));
+      else {
+        const wp = screenToWorld(sx, sy);
+        const n = sim.current.nodes.find((z) => z.id === p.id);
+        if (n) { n.x = wp.x; n.y = wp.y; n.vx = n.vy = 0; kick(0.12); }
+      }
+      return;
+    }
+    const wp = screenToWorld(sx, sy);
+    const id = nearestNode(wp.x, wp.y, 18);
+    if (id !== hoverId) setHoverId(id);
+  };
+  const onUp = () => {
+    const p = press.current; press.current = null; sim.current.dragId = null;
+    if (!p) return;
+    if (p.moved < 5) { p.mode === "drag" ? onSelect(p.id) : onSelect(null); }
+    kick(0.1);
+  };
+  const onWheel = (e) => {
+    e.preventDefault();
+    const rect = ref.current.getBoundingClientRect();
+    const mx = e.clientX - rect.left, my = e.clientY - rect.top;
+    const factor = e.deltaY < 0 ? 1.12 : 0.893;
+    setView((v) => { const k = Math.max(0.35, Math.min(3.5, v.k * factor)); return { k, x: mx - (mx - v.x) * (k / v.k), y: my - (my - v.y) * (k / v.k) }; });
+  };
+
+  const { nodes, links } = sim.current;
+  const active = new Set(typeFilter);
+  const focus = selectedId ? reachable(selectedId, 6) : null;
+  const visIds = new Set(nodes.filter((n) => active.has(n.t)).map((n) => n.id));
+  const neigh = selectedId ? adj[selectedId] : new Set();
+  const labelFor = (id) => view.k >= 1.55 || id === selectedId || id === hoverId || neigh.has(id);
+
+  return (
+    <svg ref={ref} style={{ position: "absolute", inset: 0, width: "100%", height: "100%", display: "block", cursor: press.current?.mode === "pan" ? "grabbing" : hoverId ? "pointer" : "grab", userSelect: "none", touchAction: "none" }}
+      onMouseDown={onDown} onMouseMove={onMove} onMouseUp={onUp} onMouseLeave={() => { onUp(); setHoverId(null); }} onWheel={onWheel}>
+      <defs>
+        <marker id="ah" markerWidth="7" markerHeight="7" refX="6" refY="3.2" orient="auto"><path d="M0 0 L6.5 3.2 L0 6.4 Z" fill="var(--ink3)" /></marker>
+        <marker id="ah-a" markerWidth="7" markerHeight="7" refX="6" refY="3.2" orient="auto"><path d="M0 0 L6.5 3.2 L0 6.4 Z" fill="var(--accent)" /></marker>
+      </defs>
+      <g transform={`translate(${view.x},${view.y}) scale(${view.k})`}>
+        {/* lane bands + headers (world space) */}
+        {dim.w > 0 && LANES.filter((t) => active.has(t)).map((t) => {
+          const cx = COL_X[t] * dim.w, w = dim.w * 0.158;
+          return (
+            <g key={t}>
+              <rect x={cx - w / 2} y={6} width={w} height={dim.h - 12} rx={16} fill={T[t].c} opacity={0.05} />
+              <text x={cx} y={28} textAnchor="middle" style={{ fontSize: 10.5, fontWeight: 700, letterSpacing: ".12em", fill: T[t].c, opacity: 0.8, fontFamily: "var(--font-body)", textTransform: "uppercase" }}>{T[t].label}</text>
+            </g>
+          );
+        })}
+        {/* edges */}
+        {links.map((l, i) => {
+          const s = nodes[l.source], t = nodes[l.target];
+          if (!s || !t || !visIds.has(s.id) || !visIds.has(t.id)) return null;
+          const inFocus = focus && focus.has(s.id) && focus.has(t.id);
+          const faded = focus && !inFocus;
+          const sign = i % 2 ? 1 : -1;
+          const { d } = curve(s, t, sign);
+          let stroke = "var(--edge)", w = 1.3, op = 0.7, dash, marker;
+          if (l.rel === "predicted") { stroke = "var(--accent)"; dash = "5 4"; op = 0.75; }
+          else if (l.rel === "evidence") { stroke = "var(--accent2)"; dash = "1 5"; w = 1.5; op = 0.7; }
+          if (faded) { stroke = "var(--edge-faint)"; op = 1; w = 1; dash = undefined; }
+          if (inFocus) { w = l.rel === "evidence" ? 1.8 : 2; op = 0.95; marker = l.rel === "predicted" ? "url(#ah-a)" : "url(#ah)"; }
+          return <path key={i} d={d} fill="none" stroke={stroke} strokeWidth={w} opacity={op} strokeDasharray={dash} markerEnd={marker} strokeLinecap="round" />;
+        })}
+        {/* nodes */}
+        {nodes.filter((n) => active.has(n.t)).map((n) => {
+          const d = T[n.t];
+          const sel = n.id === selectedId, hov = n.id === hoverId;
+          const faded = focus && !focus.has(n.id);
+          const r = sel ? 12 : hov ? 10 : 7.5;
+          return (
+            <g key={n.id} opacity={faded ? 0.28 : 1} style={{ transition: "opacity .2s" }}>
+              {(sel || hov) && <circle cx={n.x} cy={n.y} r={r + 11} fill={d.c} opacity={0.15} />}
+              <circle cx={n.x} cy={n.y} r={r + 2.5} fill="var(--surface)" />
+              <circle cx={n.x} cy={n.y} r={r} fill={d.c} stroke={sel ? "var(--surface)" : "transparent"} strokeWidth={sel ? 2.5 : 0} />
+              {sel && <circle cx={n.x} cy={n.y} r={r + 4} fill="none" stroke={d.c} strokeWidth={1.5} opacity={0.5} />}
+              {!faded && labelFor(n.id) && (() => {
+                const txt = n.name.length > 22 ? n.name.slice(0, 21) + "…" : n.name;
+                const w = txt.length * 6.0 + 16, ly = n.y + r + 8;
+                return (
+                  <g style={{ pointerEvents: "none" }}>
+                    <rect x={n.x - w / 2} y={ly} width={w} height={19} rx={9.5} fill="var(--surface)" stroke="var(--line)" strokeWidth={1} opacity={0.96} />
+                    <text x={n.x} y={ly + 13} textAnchor="middle" style={{ fontSize: 10.5, fontWeight: sel ? 600 : 500, fill: "var(--ink2)", fontFamily: "var(--font-body)" }}>{txt}</text>
+                  </g>
+                );
+              })()}
+            </g>
+          );
+        })}
+      </g>
+    </svg>
+  );
+}
+
+function GraphCtrl({ icon: Icon, onClick, title }) {
+  return <button className="iconbtn" onClick={onClick} title={title} style={{ background: "var(--surface)" }}><Icon size={15} /></button>;
+}
+
+function GraphView({ go, initial, onPersist }) {
+  const [selectedId, setSelectedId] = useState(initial?.selectedId || null);
+  const [typeFilter, setTypeFilter] = useState(initial?.typeFilter || Object.keys(T));
+  const [view, setView] = useState(initial?.view || { k: 1, x: 0, y: 0 });
+  const [q, setQ] = useState("");
+  const [qOpen, setQOpen] = useState(false);
+  const selectedNode = selectedId ? nodeById[selectedId] : null;
+
+  useEffect(() => { onPersist && onPersist({ selectedId, typeFilter, view }); }, [selectedId, typeFilter, view]); // eslint-disable-line
+
+  const toggleType = (t) => setTypeFilter((p) => p.includes(t) ? p.filter((x) => x !== t) : [...p, t]);
+  const zoom = (f) => setView((v) => ({ ...v, k: Math.max(0.35, Math.min(3.5, v.k * f)) }));
+  const reset = () => { setView({ k: 1, x: 0, y: 0 }); setSelectedId(null); };
+  const matches = q.trim() ? NODES.filter((n) => n.name.toLowerCase().includes(q.toLowerCase()) && typeFilter.includes(n.t)).slice(0, 6) : [];
+
+  return (
+    <div style={{ display: "grid", gridTemplateColumns: selectedNode ? "1fr 312px" : "1fr", height: "100%", overflow: "hidden", position: "relative" }}>
+      <div style={{ position: "relative", height: "100%", overflow: "hidden" }}>
+        <ForceGraph selectedId={selectedId} onSelect={setSelectedId} typeFilter={typeFilter} view={view} setView={setView} />
+
+        {/* top-left: search + legend */}
+        <div style={{ position: "absolute", top: 16, left: 16, display: "flex", flexDirection: "column", gap: 10, width: 230 }}>
+          <div style={{ position: "relative" }}>
+            <div className="field" style={{ padding: "8px 12px", background: "var(--surface)", boxShadow: "var(--shadow-sm)" }}>
+              <Search size={14} color="var(--ink3)" />
+              <input value={q} placeholder="Find a node…" onChange={(e) => { setQ(e.target.value); setQOpen(true); }} onFocus={() => setQOpen(true)} style={{ fontSize: 13 }} />
+              {q && <X size={14} color="var(--ink3)" style={{ cursor: "pointer" }} onClick={() => { setQ(""); setQOpen(false); }} />}
+            </div>
+            {qOpen && matches.length > 0 && (
+              <div className="cu-card fade-in" style={{ position: "absolute", top: 44, left: 0, right: 0, padding: 6, boxShadow: "var(--shadow-md)", zIndex: 5 }}>
+                {matches.map((n) => (
+                  <div key={n.id} className="navitem" style={{ padding: "7px 10px", fontSize: 12.5 }} onClick={() => { setSelectedId(n.id); setQ(""); setQOpen(false); }}>
+                    <span style={{ width: 8, height: 8, borderRadius: 9, background: T[n.t].c, flexShrink: 0 }} /> {n.name}
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+          <div style={{ background: "var(--surface)", border: "1px solid var(--line)", borderRadius: "var(--r-md)", padding: "11px 13px", boxShadow: "var(--shadow-sm)" }}>
+            <div className="eyebrow" style={{ marginBottom: 9 }}>Node types</div>
+            <div style={{ display: "flex", flexDirection: "column", gap: 7 }}>
+              {Object.entries(T).map(([t, d]) => (
+                <div key={t} onClick={() => toggleType(t)} style={{ display: "flex", alignItems: "center", gap: 9, cursor: "pointer", opacity: typeFilter.includes(t) ? 1 : 0.34, fontSize: 12.5, transition: "opacity .14s" }}>
+                  <span style={{ width: 11, height: 11, borderRadius: 4, background: d.c, flexShrink: 0 }} /> {d.label}
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+
+        {/* bottom-right: controls */}
+        <div style={{ position: "absolute", bottom: 16, right: 16, display: "flex", flexDirection: "column", gap: 6, boxShadow: "var(--shadow-sm)", borderRadius: "var(--r-sm)" }}>
+          <GraphCtrl icon={Plus} onClick={() => zoom(1.2)} title="Zoom in" />
+          <GraphCtrl icon={Minus} onClick={() => zoom(0.83)} title="Zoom out" />
+          <GraphCtrl icon={Maximize2} onClick={() => setView({ k: 1, x: 0, y: 0 })} title="Reset view" />
+          <GraphCtrl icon={RotateCcw} onClick={reset} title="Clear & reset" />
+        </div>
+
+        {/* legend hint */}
+        <div style={{ position: "absolute", bottom: 16, left: 16, display: "flex", gap: 14, fontSize: 11, color: "var(--ink3)", background: "var(--surface)", border: "1px solid var(--line)", borderRadius: 999, padding: "7px 14px", boxShadow: "var(--shadow-sm)" }}>
+          <span style={{ display: "flex", alignItems: "center", gap: 6 }}><svg width="22" height="6"><line x1="0" y1="3" x2="22" y2="3" stroke="var(--edge)" strokeWidth="1.6" /></svg> established</span>
+          <span style={{ display: "flex", alignItems: "center", gap: 6 }}><svg width="22" height="6"><line x1="0" y1="3" x2="22" y2="3" stroke="var(--accent)" strokeWidth="1.6" strokeDasharray="5 4" /></svg> predicted</span>
+        </div>
+      </div>
+
+      {selectedNode && (
+        <div className="scroll graph-side rise" style={{ borderLeft: "1px solid var(--line)", background: "var(--surface)", padding: 20, display: "flex", flexDirection: "column", gap: 16 }}>
+          <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between" }}>
+            <div style={{ width: 46, height: 46, borderRadius: 13, background: hexA(T[selectedNode.t].c, 0.14), color: T[selectedNode.t].c, display: "grid", placeItems: "center" }}>
+              {React.createElement(T[selectedNode.t].Icon, { size: 22 })}
+            </div>
+            <button className="iconbtn sm" onClick={() => setSelectedId(null)}><X size={14} /></button>
+          </div>
+          <div>
+            <TypeChip t={selectedNode.t} />
+            <div className="disp" style={{ fontSize: 18, fontWeight: 600, marginTop: 7, lineHeight: 1.25 }}>{selectedNode.name}</div>
+            <div style={{ fontSize: 12.5, color: "var(--ink3)", marginTop: 3 }}>{selectedNode.sub}</div>
+          </div>
+          <div className="divider" />
+          <div>
+            <div className="eyebrow" style={{ marginBottom: 11 }}>Direct connections · {adj[selectedId].size}</div>
+            <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
+              {[...adj[selectedId]].map((id) => <NodeRef key={id} id={id} onClick={setSelectedId} />)}
+            </div>
+          </div>
+          {(selectedNode.t === "compound" || selectedNode.t === "target") && (
+            <button className="btn btn-pri btn-block" onClick={() => go(selectedNode.t, selectedId)}>Open dossier <ArrowUpRight size={14} /></button>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+/* ============================================================
+   7a. DASHBOARD
+   ============================================================ */
+// Real thumbnail of the convergence map (deterministic layered layout).
+function MiniMap() {
+  const W = 460, H = 300, pad = 34;
+  const pos = useMemo(() => {
+    const p = {};
+    LANES.forEach((t, li) => {
+      const ns = NODES.filter((n) => n.t === t);
+      ns.forEach((n, ri) => {
+        p[n.id] = { x: pad + li * ((W - pad * 2) / 4), y: pad + (ri + 0.5) * ((H - pad * 2) / ns.length), c: T[t].c };
+      });
+    });
+    NODES.filter((n) => n.t === "evidence").forEach((n, ri) => {
+      p[n.id] = { x: pad + 2 * ((W - pad * 2) / 4) + ((ri % 2) * 18 - 9), y: H - 16, c: T.evidence.c };
+    });
+    return p;
+  }, []);
+  return (
+    <svg viewBox={`0 0 ${W} ${H}`} width="100%" height="100%" style={{ display: "block" }}>
+      {LANES.map((t, li) => <text key={t} x={pad + li * ((W - pad * 2) / 4)} y={16} textAnchor="middle" style={{ fontSize: 8.5, fontWeight: 700, letterSpacing: ".08em", fill: T[t].c, opacity: 0.7, fontFamily: "var(--font-body)" }}>{T[t].label.toUpperCase()}</text>)}
+      {LINKS.map(([a, b, rel], i) => {
+        const s = pos[a], t = pos[b]; if (!s || !t) return null;
+        const mx = (s.x + t.x) / 2;
+        return <path key={i} d={`M${s.x} ${s.y} C ${mx} ${s.y}, ${mx} ${t.y}, ${t.x} ${t.y}`} fill="none"
+          stroke={rel === "predicted" ? "var(--accent)" : rel === "evidence" ? "var(--accent2)" : "var(--edge)"}
+          strokeWidth={1} opacity={rel === "predicted" ? 0.6 : 0.45} strokeDasharray={rel === "predicted" ? "4 3" : rel === "evidence" ? "1 4" : undefined} />;
+      })}
+      {Object.values(pos).map((d, i) => (
+        <g key={i}><circle cx={d.x} cy={d.y} r={4.5} fill="var(--surface)" /><circle cx={d.x} cy={d.y} r={3.2} fill={d.c} /></g>
+      ))}
+    </svg>
+  );
+}
+
+function greeting() { const h = new Date().getHours(); return h < 12 ? "Good morning" : h < 18 ? "Good afternoon" : "Good evening"; }
+
+function DashboardView({ go, user, bookmarks, toggleBookmark }) {
+  const top = HYPOTHESES.slice().sort((a, b) => b.score - a.score);
+  const strong = HYPOTHESES.filter((h) => h.tier === "Strong").length;
+  const hi = EVIDENCE.filter((e) => e.quality === "High").length;
+  const isSaved = bookmarks.includes(top[0].id);
+  const stats = [
+    { k: HYPOTHESES.length, l: "Hypotheses", d: `${strong} strong · ${HYPOTHESES.length - strong} exploratory` },
+    { k: EVIDENCE.length, l: "Evidence sources", d: `${hi} high quality` },
+    { k: NODES.length, l: "Graph nodes", d: `${LINKS.length} relationships` },
+  ];
+  return (
+    <div className="scroll pagepad" style={{ padding: 28 }}>
+      <PageHead eyebrow="Workspace · Ethnopharmacology MVP" title={`${greeting()}, ${user?.name?.split(" ")[0] || "researcher"}`}
+        sub="Five hypotheses surfaced across five traditions and five compounds — each traced to its evidence."
+        action={<>
+          <button className="btn" onClick={() => go("assistant")}><Sparkles size={14} /> Ask assistant</button>
+          <button className="btn btn-pri" onClick={() => go("graph")}><Waypoints size={14} /> Open graph</button>
+        </>} />
+
+      <div className="dash-2" style={{ display: "grid", gridTemplateColumns: "1.32fr 1fr", gap: 18, marginBottom: 18 }}>
+        <div className="cu-card hoverable" style={{ overflow: "hidden", display: "flex", flexDirection: "column", cursor: "pointer" }} onClick={() => go("graph")}>
+          <div style={{ padding: "18px 20px 6px" }}>
+            <div className="eyebrow">Discovery graph</div>
+            <div className="disp" style={{ fontSize: 17, fontWeight: 600, marginTop: 3 }}>Convergence map</div>
+          </div>
+          <div style={{ flex: 1, minHeight: 230, padding: "0 14px" }}><MiniMap /></div>
+          <div style={{ padding: "14px 20px", borderTop: "1px solid var(--line)", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+            <div style={{ fontSize: 12.5, color: "var(--ink3)" }}>Culture → species → compound → target → disease</div>
+            <span className="btn btn-sm">Explore <ArrowUpRight size={13} /></span>
+          </div>
+        </div>
+
+        <div style={{ display: "flex", flexDirection: "column", gap: 18 }}>
+          <div className="cu-card hoverable" style={{ padding: 20, cursor: "pointer", position: "relative", overflow: "hidden" }} onClick={() => go("hypothesis", top[0].id)}>
+            <div style={{ position: "absolute", top: 0, left: 0, right: 0, height: 3, background: "linear-gradient(90deg,#6D5BD0,#16A39A)" }} />
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 12 }}>
+              <div>
+                <div className="eyebrow">Top discovery</div>
+                <div className="disp" style={{ fontSize: 16, fontWeight: 600, marginTop: 8, lineHeight: 1.3 }}>{top[0].title}</div>
+              </div>
+              <button className="iconbtn sm" onClick={(e) => { e.stopPropagation(); toggleBookmark(top[0].id); }} title={isSaved ? "Remove bookmark" : "Save"}>
+                {isSaved ? <BookmarkCheck size={14} color="var(--accent)" /> : <Bookmark size={14} />}
+              </button>
+            </div>
+            <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 14 }}>
+              <ScoreGauge value={top[0].score} size={44} stroke={5} />
+              <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+                <span className="chip" style={tierStyle(top[0].tier)}>{top[0].tier}</span>
+                {top[0].cultures.map((c) => <span key={c} className="chip" style={{ background: "var(--soft)", borderColor: "transparent", color: "var(--ink2)" }}>{nodeById[c].name}</span>)}
+              </div>
+            </div>
+          </div>
+
+          <div className="cu-card" style={{ padding: "6px 20px", flex: 1, display: "flex", flexDirection: "column", justifyContent: "center" }}>
+            {stats.map((s, i) => (
+              <div key={s.l} style={{ display: "flex", alignItems: "center", gap: 14, padding: "13px 0", borderTop: i ? "1px solid var(--line)" : "none" }}>
+                <div className="mono disp" style={{ fontSize: 26, fontWeight: 600, minWidth: 44 }}>{s.k}</div>
+                <div><div style={{ fontSize: 13.5, fontWeight: 500 }}>{s.l}</div><div style={{ fontSize: 12, color: "var(--ink3)" }}>{s.d}</div></div>
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+
+      <div style={{ marginTop: 32 }}>
+        <SectionHeader title="Recent hypotheses" action={<button className="btn btn-sm" onClick={() => go("hypotheses")}>View all <ChevronRight size={14} /></button>} />
+        <div className="grid-2" style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill,minmax(290px,1fr))", gap: 14 }}>
+          {top.slice(0, 3).map((h) => (
+            <div key={h.id} className="cu-card hoverable" style={{ padding: 18, cursor: "pointer" }} onClick={() => go("hypothesis", h.id)}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
+                <span className="chip" style={tierStyle(h.tier)}>{h.tier}</span>
+                <ScoreGauge value={h.score} size={42} stroke={5} />
+              </div>
+              <div className="disp" style={{ fontSize: 14.5, fontWeight: 600, lineHeight: 1.35, minHeight: 56 }}>{h.title}</div>
+              <div className="divider" style={{ margin: "12px 0" }} />
+              <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12, color: "var(--ink3)" }}>
+                <span>{h.compounds.length} compound{h.compounds.length > 1 ? "s" : ""}</span><span>Evidence: {h.evidence}</span>
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      <div style={{ marginTop: 32 }}>
+        <SectionHeader title="Recent evidence" action={<button className="btn btn-sm" onClick={() => go("evidence")}>View all <ChevronRight size={14} /></button>} />
+        <div className="cu-card" style={{ overflow: "hidden" }}>
+          {EVIDENCE.map((e, i) => (
+            <div key={e.id} style={{ display: "flex", alignItems: "center", gap: 16, padding: "14px 18px", borderTop: i ? "1px solid var(--line)" : "none" }}>
+              <div style={{ width: 34, height: 34, borderRadius: 10, background: "var(--accent2-soft)", color: "var(--accent2)", display: "grid", placeItems: "center", flexShrink: 0 }}><Quote size={15} /></div>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ fontSize: 13.5, fontWeight: 500, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{e.title}</div>
+                <div className="mono" style={{ fontSize: 11, color: "var(--ink3)", marginTop: 2 }}>{e.authors} · {e.venue} · {e.year}</div>
+              </div>
+              <SourceBadge q={e.quality} />
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/* ============================================================
+   7b. HYPOTHESES FEED + DETAIL
+   ============================================================ */
+function HypothesesView({ go, bookmarks, toggleBookmark }) {
+  const [filter, setFilter] = useState("All");
+  const tiers = ["All", "Strong", "Exploratory"];
+  const visible = HYPOTHESES.filter((h) => filter === "All" || h.tier === filter).sort((a, b) => b.score - a.score);
+  return (
+    <div className="scroll pagepad" style={{ padding: 28 }}>
+      <PageHead eyebrow="Convergence signals" title="Hypothesis feed"
+        sub="Ranked by cultural convergence, phytochemical overlap, target plausibility and evidence quality."
+        action={<div className="seg">{tiers.map((t) => <button key={t} className={filter === t ? "on" : ""} onClick={() => setFilter(t)}>{t}</button>)}</div>} />
+      <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+        {visible.map((h) => {
+          const saved = bookmarks.includes(h.id);
+          return (
+            <div key={h.id} className="cu-card hoverable" style={{ padding: 22, cursor: "pointer" }} onClick={() => go("hypothesis", h.id)}>
+              <div style={{ display: "flex", alignItems: "flex-start", gap: 18 }}>
+                <ScoreGauge value={h.score} size={56} stroke={6} />
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8, flexWrap: "wrap" }}>
+                    <span className="chip" style={tierStyle(h.tier)}>{h.tier}</span>
+                    <SourceBadge q={h.evidence} />
+                  </div>
+                  <div className="disp" style={{ fontSize: 17, fontWeight: 600, lineHeight: 1.35, marginBottom: 9 }}>{h.title}</div>
+                  <p style={{ fontSize: 13.5, color: "var(--ink2)", lineHeight: 1.6, margin: "0 0 14px" }}>{h.why.slice(0, 168)}…</p>
+                  <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+                    {h.compounds.map((id) => <NodeRef key={id} id={id} />)}
+                    {h.targets.map((id) => <NodeRef key={id} id={id} />)}
+                  </div>
+                </div>
+                <button className="iconbtn sm" style={{ flexShrink: 0 }} onClick={(e) => { e.stopPropagation(); toggleBookmark(h.id); }} title={saved ? "Remove bookmark" : "Save"}>
+                  {saved ? <BookmarkCheck size={14} color="var(--accent)" /> : <Bookmark size={14} />}
+                </button>
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+function HypothesisDetail({ id, go, bookmarks, toggleBookmark }) {
+  const h = HYPOTHESES.find((x) => x.id === id);
+  if (!h) return <div className="pagepad" style={{ padding: 28 }}>Hypothesis not found.</div>;
+  const saved = bookmarks.includes(h.id);
+  const breakdown = [["Cultural convergence", h.breakdown.cultural, "var(--good)"], ["Phytochemical overlap", h.breakdown.phyto, "var(--accent)"], ["Target plausibility", h.breakdown.target, "var(--accent2)"], ["Evidence quality", h.breakdown.evidence, "var(--warn)"]];
+  return (
+    <div className="scroll pagepad" style={{ padding: 28, maxWidth: 880, margin: "0 auto" }}>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 22 }}>
+        <button className="btn btn-sm" onClick={() => go("hypotheses")}><ChevronLeft size={14} /> All hypotheses</button>
+        <button className="btn btn-sm" onClick={() => toggleBookmark(h.id)}>
+          {saved ? <><BookmarkCheck size={14} color="var(--accent)" /> Saved</> : <><Bookmark size={14} /> Save</>}
+        </button>
+      </div>
+      <div style={{ display: "flex", gap: 22, alignItems: "flex-start", flexWrap: "wrap" }}>
+        <ScoreGauge value={h.score} size={84} stroke={9} />
+        <div style={{ flex: 1, minWidth: 260 }}>
+          <div style={{ display: "flex", gap: 8, marginBottom: 10, flexWrap: "wrap" }}>
+            <span className="chip" style={tierStyle(h.tier)}>{h.tier}</span>
+            <SourceBadge q={h.evidence} />
+          </div>
+          <h1 className="disp" style={{ fontSize: 25, fontWeight: 500, lineHeight: 1.25, margin: "0 0 14px" }}>{h.title}</h1>
+          <p style={{ fontSize: 14.5, color: "var(--ink2)", lineHeight: 1.75, margin: 0 }}>{h.why}</p>
+        </div>
+      </div>
+      <div className="divider" style={{ margin: "28px 0" }} />
+      <div className="grid-2" style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14, marginBottom: 24 }}>
+        {[["Cultures", h.cultures], ["Plants", h.plants], ["Compounds", h.compounds], ["Targets", h.targets]].map(([label, ids]) => (
+          <div key={label} className="cu-card" style={{ padding: 18 }}>
+            <div className="eyebrow" style={{ marginBottom: 11 }}>{label}</div>
+            <div style={{ display: "flex", gap: 7, flexWrap: "wrap" }}>
+              {ids.map((nid) => <NodeRef key={nid} id={nid} onClick={() => { const n = nodeById[nid]; go(n.t === "compound" ? "compound" : n.t === "target" ? "target" : "graph", nid); }} />)}
+            </div>
+          </div>
+        ))}
+      </div>
+      <div className="cu-card" style={{ padding: 22 }}>
+        <div className="eyebrow" style={{ marginBottom: 18 }}>Convergence score breakdown</div>
+        <div style={{ display: "flex", flexDirection: "column", gap: 15 }}>
+          {breakdown.map(([label, val, col]) => (
+            <div key={label}>
+              <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 6, fontSize: 13 }}>
+                <span>{label}</span><span className="mono" style={{ fontWeight: 600, color: col }}>{val}</span>
+              </div>
+              <Bar value={val} color={col} />
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/* ============================================================
+   7c. RESEARCH ASSISTANT  — scientific copilot
+   ============================================================ */
+const SYS_PROMPT = `You are the Curare.AI research assistant, an expert in ethnopharmacology and natural product drug discovery. You have access to the Curare dataset: 5 cultural traditions (Amazonian, TCM, Andean/Quechua, Tupi, Greek/European), 5 plant species (Chondrodendron tomentosum, Artemisia annua, Cinchona officinalis, Pilocarpus jaborandi, Salix alba), 5 compounds (d-Tubocurarine, Artemisinin, Quinine, Pilocarpine, Salicylates), 5 molecular targets (nAChR, mAChR M3, COX-1/2, Heme/PfATP6, Hemozoin), and 5 diseases (neuromuscular blockade, malaria, glaucoma/xerostomia, inflammation/thrombosis, Alzheimer's). There are 5 hypotheses scored by cultural convergence, phytochemical overlap, target plausibility, and evidence quality. Answer questions based on this dataset. Be scientifically precise, cite evidence IDs like [ev-1] when relevant, keep responses concise (under 150 words), and flag when claims are predicted vs. established.`;
+
+const SUGGESTED = [
+  "Why does the malaria hypothesis score 92?",
+  "Explain the cholinergic axis hypothesis",
+  "What evidence supports artemisinin?",
+  "Could pilocarpine help in Alzheimer's?",
+];
+const EV_BY_ID = Object.fromEntries(EVIDENCE.map((e) => [e.id, e]));
+
+function RichText({ text, go }) {
+  const paras = text.split(/\n{2,}/);
+  const renderInline = (chunk, kp) => {
+    const parts = chunk.split(/(\[ev-\d+\])/g);
+    return parts.map((p, i) => {
+      const m = p.match(/^\[(ev-\d+)\]$/);
+      if (m && EV_BY_ID[m[1]]) {
+        const e = EV_BY_ID[m[1]];
+        return <span key={kp + "-" + i} className="cite" title={`${e.title} — ${e.authors}, ${e.year}`} onClick={() => go("evidence")}>{m[1].split("-")[1]}</span>;
+      }
+      return <React.Fragment key={kp + "-" + i}>{p}</React.Fragment>;
+    });
+  };
+  return <>{paras.map((p, i) => <p key={i}>{p.split(/\n/).map((line, j) => <React.Fragment key={j}>{j > 0 && <br />}{renderInline(line, i + "_" + j)}</React.Fragment>)}</p>)}</>;
+}
+
+function citedIds(text) { return [...new Set([...text.matchAll(/\[(ev-\d+)\]/g)].map((m) => m[1]))].filter((id) => EV_BY_ID[id]); }
+
+function AssistantView({ go, user, log }) {
+  const db = useDB();
+  const [msgs, setMsgs] = useState(null);
+  const [input, setInput] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState("");
+  const [showSug, setShowSug] = useState(true);
+  const [copied, setCopied] = useState(null);
+  const bottomRef = useRef();
+  const scrollRef = useRef();
+
+  useEffect(() => { (async () => setMsgs(await db.get(K.chat, [])))(); }, [db]);
+  useEffect(() => {
+    if (msgs !== null) db.set(K.chat, msgs.slice(-20));
+    bottomRef.current?.scrollIntoView({ behavior: "smooth" });
+  }, [msgs]); // eslint-disable-line
+
+  const ask = useCallback(async (text) => {
+    if (!text.trim() || busy) return;
+    setMsgs((prev) => [...(prev || []), { role: "user", text, id: Date.now() }]);
+    setInput(""); setBusy(true); setErr(""); setShowSug(false);
+    log("Asked assistant", text.slice(0, 50));
+    try {
+      const history = (msgs || []).slice(-8).map((m) => ({ role: m.role === "user" ? "user" : "assistant", content: m.text }));
+      const res = await fetch("https://api.anthropic.com/v1/messages", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ model: "claude-sonnet-4-6", max_tokens: 1000, system: SYS_PROMPT, messages: [...history, { role: "user", content: text }] }),
+      });
+      const data = await res.json();
+      const aiText = data.content?.find((b) => b.type === "text")?.text || "I couldn't form a response from the dataset. Try rephrasing the question.";
+      setMsgs((prev) => [...prev, { role: "assistant", text: aiText, id: Date.now() + 1 }]);
+    } catch { setErr("Connection error — your question wasn't sent. Try again."); }
+    setBusy(false);
+  }, [msgs, busy, log]);
+
+  const onKey = (e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); ask(input); } };
+  const copy = (m) => { navigator.clipboard?.writeText(m.text); setCopied(m.id); setTimeout(() => setCopied(null), 1400); };
+  const clear = () => { setMsgs([]); db.del(K.chat); setShowSug(true); };
+
+  if (msgs === null) return <div style={{ height: "100%", display: "grid", placeItems: "center" }}><Loader2 className="spin" color="var(--accent)" /></div>;
+  const empty = msgs.length === 0;
+
+  return (
+    <div style={{ height: "100%", display: "flex", flexDirection: "column", overflow: "hidden" }}>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "14px 24px", borderBottom: "1px solid var(--line)", flexShrink: 0 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 11 }}>
+          <div style={{ width: 32, height: 32, borderRadius: 9, background: "linear-gradient(135deg,#6D5BD0,#16A39A)", display: "grid", placeItems: "center" }}><Microscope size={16} color="#fff" /></div>
+          <div>
+            <div className="disp" style={{ fontSize: 14.5, fontWeight: 600 }}>Research assistant</div>
+            <div style={{ fontSize: 11, color: "var(--ink3)", display: "flex", alignItems: "center", gap: 5 }}><ShieldCheck size={11} color="var(--accent2)" /> Grounded in the Curare graph · {EVIDENCE.length} sources</div>
+          </div>
+        </div>
+        {!empty && <button className="btn btn-sm btn-ghost" onClick={clear}><RotateCcw size={13} /> New thread</button>}
+      </div>
+
+      <div ref={scrollRef} className="scroll" style={{ flex: 1, padding: "26px 24px", display: "flex", flexDirection: "column", gap: 22 }}>
+        {empty ? (
+          <div style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 22, textAlign: "center" }}>
+            <div style={{ width: 56, height: 56, borderRadius: 17, background: "linear-gradient(135deg,#6D5BD0,#16A39A)", display: "grid", placeItems: "center" }}><Microscope size={27} color="#fff" /></div>
+            <div>
+              <div className="disp" style={{ fontSize: 21, fontWeight: 600, marginBottom: 8 }}>Ask the discovery engine</div>
+              <p style={{ color: "var(--ink3)", fontSize: 14, maxWidth: 420, lineHeight: 1.65 }}>Question any hypothesis, compound, target or tradition. Answers cite evidence from the graph and flag predictions.</p>
+            </div>
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, maxWidth: 540, width: "100%" }}>
+              {SUGGESTED.map((s) => <button key={s} className="suggested-chip" onClick={() => ask(s)}><Sparkles size={13} color="var(--accent)" style={{ flexShrink: 0 }} /> {s}</button>)}
+            </div>
+          </div>
+        ) : (
+          <>
+            {msgs.map((m) => m.role === "user" ? (
+              <div key={m.id} className="chat-row me">
+                <Avatar name={user?.name} size={28} />
+                <div className="bubble-me">{m.text}</div>
+              </div>
+            ) : (
+              <div key={m.id} className="chat-row">
+                <div className="chat-av" style={{ background: "linear-gradient(135deg,#6D5BD0,#16A39A)" }}><Microscope size={15} color="#fff" /></div>
+                <div style={{ minWidth: 0, flex: 1 }}>
+                  <div className="bubble-ai"><RichText text={m.text} go={go} /></div>
+                  {citedIds(m.text).length > 0 && (
+                    <div style={{ marginTop: 12, paddingTop: 12, borderTop: "1px dashed var(--line2)" }}>
+                      <div className="eyebrow" style={{ marginBottom: 8 }}>Sources</div>
+                      <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                        {citedIds(m.text).map((id) => { const e = EV_BY_ID[id]; return (
+                          <div key={id} onClick={() => go("evidence")} style={{ display: "flex", gap: 9, alignItems: "center", cursor: "pointer", fontSize: 12.5, color: "var(--ink2)" }}>
+                            <span className="cite">{id.split("-")[1]}</span>
+                            <span style={{ flex: 1 }}>{e.title} <span className="mono" style={{ color: "var(--ink3)" }}>· {e.authors}, {e.year}</span></span>
+                            <SourceBadge q={e.quality} />
+                          </div> ); })}
+                      </div>
+                    </div>
+                  )}
+                  <button className="btn btn-sm btn-ghost" style={{ marginTop: 8, padding: "4px 8px", fontSize: 11.5, color: "var(--ink3)" }} onClick={() => copy(m)}>
+                    {copied === m.id ? <><Check size={12} /> Copied</> : <><Copy size={12} /> Copy</>}
+                  </button>
+                </div>
+              </div>
+            ))}
+            {busy && (
+              <div className="chat-row">
+                <div className="chat-av" style={{ background: "linear-gradient(135deg,#6D5BD0,#16A39A)" }}><Microscope size={15} color="#fff" /></div>
+                <div className="bubble-ai" style={{ display: "flex", alignItems: "center", gap: 9, color: "var(--ink3)" }}><Loader2 size={14} className="spin" /> Reviewing the Curare graph…</div>
+              </div>
+            )}
+            {err && <div style={{ color: "var(--bad)", fontSize: 13, display: "flex", gap: 7, alignItems: "center", paddingLeft: 39 }}><AlertCircle size={14} /> {err}</div>}
+            <div ref={bottomRef} />
+          </>
+        )}
+      </div>
+
+      <div style={{ borderTop: "1px solid var(--line)", padding: "12px 24px 16px", background: "var(--surface)", flexShrink: 0 }}>
+        {!empty && showSug && (
+          <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 10 }}>
+            {SUGGESTED.slice(0, 3).map((s) => <button key={s} className="suggested-chip" style={{ padding: "6px 11px", fontSize: 12 }} onClick={() => ask(s)}>{s}</button>)}
+          </div>
+        )}
+        <div style={{ display: "flex", gap: 10, alignItems: "flex-end" }}>
+          <div className="field" style={{ flex: 1, padding: "10px 14px" }}>
+            <textarea value={input} onChange={(e) => setInput(e.target.value)} onKeyDown={onKey} placeholder="Ask about hypotheses, compounds, traditions…"
+              rows={1} style={{ resize: "none", height: 22, maxHeight: 120, lineHeight: 1.5, fontSize: 13.5 }} />
+            <span className="kbd" style={{ alignSelf: "flex-end" }}><CornerDownLeft size={11} /></span>
+          </div>
+          <button className="btn btn-pri" onClick={() => ask(input)} disabled={busy || !input.trim()} style={{ height: 44, width: 44, padding: 0 }}>
+            {busy ? <Loader2 size={15} className="spin" /> : <Send size={15} />}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/* ============================================================
+   7d. EVIDENCE  / PROVENANCE
+   ============================================================ */
+function EvidenceView({ go }) {
+  return (
+    <div className="scroll pagepad" style={{ padding: 28 }}>
+      <PageHead eyebrow="Trust layer" title="Provenance & evidence"
+        sub="Every relationship in the graph traces back to a source, an origin and a legal status." />
+      <div className="cu-card" style={{ overflowX: "auto", marginBottom: 18 }}>
+        <div style={{ minWidth: 720 }}>
+          <div style={{ display: "grid", gridTemplateColumns: "2.2fr 1.4fr 1fr 1fr .9fr", padding: "13px 20px", borderBottom: "1px solid var(--line)", fontSize: 10.5, letterSpacing: ".09em", textTransform: "uppercase", color: "var(--ink3)", fontWeight: 600 }}>
+            <span>Source</span><span>Supports</span><span>Origin</span><span>Legal</span><span>Quality</span>
+          </div>
+          {EVIDENCE.map((e, i) => (
+            <div key={e.id} style={{ display: "grid", gridTemplateColumns: "2.2fr 1.4fr 1fr 1fr .9fr", padding: "16px 20px", borderTop: i ? "1px solid var(--line)" : "none", alignItems: "center", fontSize: 13 }}>
+              <div><div style={{ fontWeight: 500 }}>{e.title}</div><div className="mono" style={{ fontSize: 11, color: "var(--ink3)", marginTop: 2 }}>{e.authors} · {e.venue} · {e.year}</div></div>
+              <span style={{ fontSize: 12.5, color: "var(--ink2)" }}>{e.supports}</span>
+              <span style={{ fontSize: 12.5, color: "var(--ink3)" }}>{e.origin}</span>
+              <span><span className="chip" style={{ background: "var(--surface2)", fontSize: 11, color: "var(--ink2)" }}><Scale size={11} /> {e.legal}</span></span>
+              <SourceBadge q={e.quality} />
+            </div>
+          ))}
+        </div>
+      </div>
+      <div className="cu-card" style={{ padding: 22 }}>
+        <div className="eyebrow" style={{ marginBottom: 16 }}>Provenance chain · Quinine</div>
+        <div style={{ display: "flex", alignItems: "center", flexWrap: "wrap", gap: 4, rowGap: 10 }}>
+          {["cu-andean", "sp-cinchona", "cp-quinine", "tg-hemoz", "di-malaria"].map((id, i, a) => (
+            <React.Fragment key={id}>
+              <NodeRef id={id} onClick={() => { const n = nodeById[id]; go(n.t === "compound" ? "compound" : n.t === "target" ? "target" : "graph", id); }} />
+              {i < a.length - 1 && <ArrowRight size={15} color="var(--ink3)" style={{ margin: "0 6px" }} />}
+            </React.Fragment>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/* ============================================================
+   7e. DOSSIERS
+   ============================================================ */
+function DossierView({ id, kind, go }) {
+  const n = nodeById[id]; if (!n) return null;
+  const neigh = [...adj[id]];
+  const group = (t) => neigh.filter((x) => nodeById[x].t === t);
+  const blocks = kind === "compound"
+    ? [["Source flora", "species"], ["Cultural usage", "culture"], ["Known targets", "target"], ["Related diseases", "disease"], ["Evidence", "evidence"]]
+    : [["Acting compounds", "compound"], ["Implicated diseases", "disease"]];
+  return (
+    <div className="scroll pagepad" style={{ padding: 28, maxWidth: 880, margin: "0 auto" }}>
+      <button className="btn btn-sm" onClick={() => go("graph")} style={{ marginBottom: 22 }}><ChevronLeft size={14} /> Back to graph</button>
+      <div style={{ display: "flex", alignItems: "center", gap: 18, flexWrap: "wrap" }}>
+        <div style={{ width: 64, height: 64, borderRadius: 18, background: hexA(T[n.t].c, 0.14), color: T[n.t].c, display: "grid", placeItems: "center" }}>
+          {React.createElement(T[n.t].Icon, { size: 28 })}
+        </div>
+        <div>
+          <TypeChip t={n.t} />
+          <h1 className="disp" style={{ fontSize: 26, fontWeight: 500, margin: "8px 0 2px" }}>{n.name}</h1>
+          <div style={{ color: "var(--ink3)", fontSize: 14 }}>{n.sub}</div>
+        </div>
+      </div>
+      <div className="grid-2" style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14, marginTop: 26 }}>
+        {blocks.map(([title, t]) => (
+          <div key={t} className="cu-card" style={{ padding: 18 }}>
+            <div className="eyebrow" style={{ marginBottom: 12 }}>{title}</div>
+            <div style={{ display: "flex", gap: 7, flexWrap: "wrap" }}>
+              {group(t).length ? group(t).map((x) => <NodeRef key={x} id={x} onClick={() => go(nodeById[x].t === "compound" ? "compound" : nodeById[x].t === "target" ? "target" : "graph", x)} />)
+                : <span style={{ fontSize: 12.5, color: "var(--ink3)" }}>No direct links in the MVP dataset.</span>}
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+/* ============================================================
+   7f. WORKSPACE
+   ============================================================ */
+function WorkspaceView({ go, bookmarks, toggleBookmark, recent }) {
+  const saved = HYPOTHESES.filter((h) => bookmarks.includes(h.id));
+  return (
+    <div className="scroll pagepad" style={{ padding: 28, maxWidth: 940, margin: "0 auto" }}>
+      <PageHead eyebrow="Saved work" title="Workspace" sub="Your saved hypotheses and recent activity, kept for your account across sessions." />
+      <SectionHeader title="Saved hypotheses" eyebrow={`${saved.length} saved`} />
+      {saved.length === 0 ? (
+        <EmptyState icon={Bookmark} title="Nothing saved yet" body="Save a hypothesis from the feed or its detail page — it'll persist across sessions."
+          action={<button className="btn btn-pri" onClick={() => go("hypotheses")}>Browse hypotheses <ArrowRight size={14} /></button>} />
+      ) : (
+        <div style={{ display: "flex", flexDirection: "column", gap: 12, marginBottom: 32 }}>
+          {saved.map((h) => (
+            <div key={h.id} className="cu-card hoverable" style={{ padding: 16, display: "flex", alignItems: "center", gap: 16 }}>
+              <ScoreGauge value={h.score} size={50} stroke={6} />
+              <div style={{ flex: 1, cursor: "pointer", minWidth: 0 }} onClick={() => go("hypothesis", h.id)}>
+                <div className="disp" style={{ fontSize: 14.5, fontWeight: 600 }}>{h.title}</div>
+                <div style={{ fontSize: 12, color: "var(--ink3)", marginTop: 3 }}>{h.tier} · Evidence: {h.evidence}</div>
+              </div>
+              <button className="iconbtn sm" onClick={() => toggleBookmark(h.id)} title="Remove bookmark"><BookmarkCheck size={14} color="var(--accent)" /></button>
+            </div>
+          ))}
+        </div>
+      )}
+      <SectionHeader title="Recent activity" />
+      {recent.length === 0 ? (
+        <div className="cu-card" style={{ padding: 20, fontSize: 13, color: "var(--ink3)" }}>Activity across the platform will appear here.</div>
+      ) : (
+        <div className="cu-card" style={{ overflow: "hidden" }}>
+          {recent.map((r, i) => (
+            <div key={i} style={{ display: "flex", justifyContent: "space-between", gap: 12, padding: "13px 18px", borderTop: i ? "1px solid var(--line)" : "none", fontSize: 13 }}>
+              <span style={{ display: "flex", alignItems: "center", gap: 10, minWidth: 0 }}><Clock size={13} color="var(--ink3)" style={{ flexShrink: 0 }} /> <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{r.label}{r.meta ? `: "${r.meta}"` : ""}</span></span>
+              <span className="mono" style={{ color: "var(--ink3)", fontSize: 11.5, flexShrink: 0 }}>{timeAgo(r.ts)}</span>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+/* ============================================================
+   7g. SETTINGS
+   ============================================================ */
+function SettingsView({ user, logout, prefs, setPrefs }) {
+  return (
+    <div className="scroll pagepad" style={{ padding: 28, maxWidth: 700, margin: "0 auto" }}>
+      <PageHead eyebrow="Preferences" title="Settings" />
+      <div className="cu-card" style={{ padding: 20, marginBottom: 16, display: "flex", alignItems: "center", gap: 16 }}>
+        <Avatar name={user?.name} size={52} />
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <div className="disp" style={{ fontSize: 16, fontWeight: 600 }}>{user?.name}</div>
+          <div style={{ fontSize: 12.5, color: "var(--ink3)" }}>{user?.email} · signed in with {user?.provider === "google" ? "Google" : "email"}</div>
+        </div>
+        <button className="btn btn-sm" onClick={logout}><LogOut size={14} /> Sign out</button>
+      </div>
+      <div className="cu-card" style={{ padding: 20, marginBottom: 16 }}>
+        <div className="eyebrow" style={{ marginBottom: 14 }}>Appearance</div>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+            {prefs.theme === "dark" ? <Moon size={15} color="var(--ink3)" /> : <Sun size={15} color="var(--ink3)" />}
+            <div><div style={{ fontSize: 13.5, fontWeight: 500 }}>Dark mode</div><div style={{ fontSize: 12, color: "var(--ink3)" }}>Switches the whole workspace theme.</div></div>
+          </div>
+          <Switch on={prefs.theme === "dark"} onClick={() => setPrefs((p) => ({ ...p, theme: p.theme === "dark" ? "light" : "dark" }))} />
+        </div>
+      </div>
+      <div className="cu-card" style={{ padding: 20, marginBottom: 16 }}>
+        <div className="eyebrow" style={{ marginBottom: 8 }}>Notifications</div>
+        {[["newEvidence", "New evidence on saved hypotheses"], ["weeklyDigest", "Weekly convergence digest"]].map(([k, label]) => (
+          <div key={k} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "9px 0" }}>
+            <span style={{ fontSize: 13.5 }}>{label}</span>
+            <Switch on={!!prefs[k]} onClick={() => setPrefs((p) => ({ ...p, [k]: !p[k] }))} />
+          </div>
+        ))}
+      </div>
+      <div className="cu-card" style={{ padding: 20 }}>
+        <div className="eyebrow" style={{ marginBottom: 10 }}>Data & privacy</div>
+        <p style={{ fontSize: 12.5, color: "var(--ink3)", lineHeight: 1.65, margin: 0 }}>Your saved hypotheses, assistant threads and preferences are stored under your account and restored across sessions. Nothing is shared with other accounts.</p>
+      </div>
+    </div>
+  );
+}
+
+/* ============================================================
+   8. COMMAND PALETTE
+   ============================================================ */
+function Palette({ open, onClose, go }) {
+  const [q, setQ] = useState("");
+  const [active, setActive] = useState(0);
+  useEffect(() => { if (open) { setQ(""); setActive(0); } }, [open]);
+  if (!open) return null;
+  const pages = [
+    ["Dashboard", "dashboard", LayoutDashboard], ["Discovery graph", "graph", Waypoints],
+    ["Hypotheses", "hypotheses", Sparkles], ["Research assistant", "assistant", Microscope],
+    ["Provenance & evidence", "evidence", ShieldCheck], ["Workspace", "workspaces", FolderKanban],
+    ["Settings", "settings", Settings],
+  ];
+  const ql = q.toLowerCase().trim();
+  const matchP = pages.filter((p) => p[0].toLowerCase().includes(ql));
+  const matchN = NODES.filter((n) => n.name.toLowerCase().includes(ql)).slice(0, 6);
+  const flat = [
+    ...matchP.map((p) => ({ kind: "page", key: p[1], label: p[0], Icon: p[2] })),
+    ...matchN.map((n) => ({ kind: "node", key: n.id, label: n.name, t: n.t })),
+  ];
+  const run = (it) => {
+    if (!it) return;
+    if (it.kind === "page") go(it.key);
+    else { const t = nodeById[it.key].t; go(t === "compound" ? "compound" : t === "target" ? "target" : "graph", it.key); }
+    onClose();
+  };
+  const onKey = (e) => {
+    if (e.key === "ArrowDown") { e.preventDefault(); setActive((a) => Math.min(flat.length - 1, a + 1)); }
+    else if (e.key === "ArrowUp") { e.preventDefault(); setActive((a) => Math.max(0, a - 1)); }
+    else if (e.key === "Enter") { e.preventDefault(); run(flat[active]); }
+  };
+  let idx = -1;
+  return (
+    <div onClick={onClose} style={{ position: "fixed", inset: 0, background: "rgba(15,15,12,.38)", backdropFilter: "blur(3px)", zIndex: 50, display: "grid", placeItems: "start center", paddingTop: "12vh" }}>
+      <div onClick={(e) => e.stopPropagation()} className="cu-card fade-in" style={{ width: 580, maxWidth: "92vw", padding: 0, overflow: "hidden", boxShadow: "var(--shadow-lg)" }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 12, padding: "15px 18px", borderBottom: "1px solid var(--line)" }}>
+          <Command size={17} color="var(--ink3)" />
+          <input autoFocus className="bare" placeholder="Search nodes and pages…" value={q} onChange={(e) => { setQ(e.target.value); setActive(0); }} onKeyDown={onKey} />
+          <span className="kbd">ESC</span>
+        </div>
+        <div className="scroll" style={{ maxHeight: 366, padding: 8 }}>
+          {matchP.length > 0 && <div className="eyebrow" style={{ padding: "8px 12px 4px" }}>Pages</div>}
+          {matchP.map((p) => { idx++; const i = idx; const Icon = p[2]; return (
+            <div key={p[1]} className={"navitem" + (active === i ? " on" : "")} onMouseEnter={() => setActive(i)} onClick={() => run({ kind: "page", key: p[1] })}>
+              <Icon size={14} color="var(--ink3)" /> {p[0]}
+            </div>); })}
+          {matchN.length > 0 && <div className="eyebrow" style={{ padding: "10px 12px 4px" }}>Nodes</div>}
+          {matchN.map((n) => { idx++; const i = idx; return (
+            <div key={n.id} className={"navitem" + (active === i ? " on" : "")} onMouseEnter={() => setActive(i)} onClick={() => run({ kind: "node", key: n.id })}>
+              <span style={{ width: 9, height: 9, borderRadius: 9, background: T[n.t].c, flexShrink: 0 }} />
+              <span style={{ flex: 1, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{n.name}</span>
+              <span className="mono" style={{ fontSize: 10, color: "var(--ink3)", textTransform: "uppercase" }}>{T[n.t].label}</span>
+            </div>); })}
+          {flat.length === 0 && <div style={{ padding: 22, textAlign: "center", color: "var(--ink3)", fontSize: 13 }}>No matches for “{q}”</div>}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/* ============================================================
+   9. NAVIGATION + APP SHELL
+   ============================================================ */
+const NAV = [
+  ["dashboard", "Dashboard", LayoutDashboard],
+  ["graph", "Discovery graph", Waypoints],
+  ["hypotheses", "Hypotheses", Sparkles],
+  ["assistant", "Research assistant", Microscope],
+  ["evidence", "Provenance", ShieldCheck],
+];
+const NAV_WS = [
+  ["workspaces", "Workspace", FolderKanban],
+  ["settings", "Settings", Settings],
+];
+const CRUMBS = {
+  dashboard: ["Dashboard"], graph: ["Discovery graph"], hypotheses: ["Hypotheses"],
+  hypothesis: ["Hypotheses", "Detail"], assistant: ["Research assistant"],
+  evidence: ["Provenance & evidence"], compound: ["Compounds", "Dossier"],
+  target: ["Targets", "Dossier"], workspaces: ["Workspace"], settings: ["Settings"],
+};
+
+function Shell({ user, logout }) {
+  const db = useMemo(() => makeDB(user), [user]);
+  const shellRef = useRef(null);
+  const loadedRef = useRef(false);
+  const [route, setRoute] = useState(null);
+  const [pal, setPal] = useState(false);
+  const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [bookmarks, setBookmarks] = useState([]);
+  const [prefs, setPrefs] = useState(DEFAULT_PREFS);
+  const [graphInitial, setGraphInitial] = useState(undefined);
+  const { items: recent, log } = useRecentActivity(db);
+
+  // restore per-user workspace state on mount / account switch
+  useEffect(() => {
+    let alive = true;
+    loadedRef.current = false;
+    (async () => {
+      const [lastRoute, bm, pf, gs] = await Promise.all([
+        db.get(K.route, { name: "dashboard", id: null }),
+        db.get(K.bookmarks, []),
+        db.get(K.prefs, DEFAULT_PREFS),
+        db.get(K.graph, undefined),
+      ]);
+      if (!alive) return;
+      setBookmarks(bm); setPrefs({ ...DEFAULT_PREFS, ...pf }); setGraphInitial(gs);
+      setRoute(lastRoute);
+      loadedRef.current = true;
+    })();
+    return () => { alive = false; };
+  }, [db]);
+
+  // apply theme to the root element (cascades to all surfaces + portals)
+  useEffect(() => {
+    const root = shellRef.current?.closest(".cu-root");
+    if (root) root.setAttribute("data-theme", prefs.theme || "light");
+  }, [prefs.theme]);
+
+  const go = useCallback((name, id = null) => {
+    setRoute({ name, id }); setSidebarOpen(false);
+    db.set(K.route, { name, id });
+    if (name === "compound" || name === "target") log("Opened dossier", id && nodeById[id]?.name);
+    if (name === "hypothesis") log("Opened hypothesis", id && HYPOTHESES.find((h) => h.id === id)?.title?.slice(0, 40));
+  }, [db, log]);
+
+  useEffect(() => {
+    const h = (e) => {
+      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "k") { e.preventDefault(); setPal((p) => !p); }
+      if (e.key === "Escape") { setPal(false); setSidebarOpen(false); }
+    };
+    window.addEventListener("keydown", h); return () => window.removeEventListener("keydown", h);
+  }, []);
+
+  // persist prefs (only after initial restore, so we never clobber stored prefs)
+  useEffect(() => { if (loadedRef.current) db.set(K.prefs, prefs); }, [db, prefs]);
+
+  const toggleBookmark = useCallback((id) => {
+    setBookmarks((prev) => {
+      const next = prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id];
+      db.set(K.bookmarks, next);
+      return next;
+    });
+  }, [db]);
+
+  if (!route) {
+    return <div ref={shellRef} style={{ height: "100vh", display: "grid", placeItems: "center", background: "var(--bg)" }}><Loader2 className="spin" color="var(--accent)" /></div>;
+  }
+
+  const crumbs = CRUMBS[route.name] || ["Curare"];
+  const navOn = (k) => route.name === k
+    || (k === "hypotheses" && route.name === "hypothesis")
+    || (k === "graph" && (route.name === "compound" || route.name === "target"))
+    || (k === "evidence" && route.name === "evidence");
+
+  return (
+    <DBContext.Provider value={db}>
+      <div className="cu-shell" ref={shellRef}>
+        {sidebarOpen && <div className="drawer-scrim open" onClick={() => setSidebarOpen(false)} />}
+        <aside className={"cu-sidebar" + (sidebarOpen ? " open" : "")}>
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "4px 6px 18px" }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+              <div style={{ width: 32, height: 32, borderRadius: 10, background: "linear-gradient(135deg,#6D5BD0,#16A39A)", display: "grid", placeItems: "center", flexShrink: 0 }}>
+                <Atom size={18} color="#fff" />
+              </div>
+              <div>
+                <div className="disp" style={{ fontWeight: 600, fontSize: 15, lineHeight: 1, color: "var(--side-ink-bright)" }}>Curare<span style={{ color: "#9C8CF0" }}>.AI</span></div>
+                <div className="mono" style={{ fontSize: 9, color: "var(--side-ink-dim)", marginTop: 3, letterSpacing: ".06em" }}>HYPOTHESIS ENGINE</div>
+              </div>
+            </div>
+            <button className="iconbtn menubtn" style={{ background: "transparent", border: "none", color: "var(--side-ink)", width: 28, height: 28 }} onClick={() => setSidebarOpen(false)}><X size={15} /></button>
+          </div>
+
+          <button onClick={() => setPal(true)} style={{ display: "flex", alignItems: "center", gap: 8, padding: "9px 12px", marginBottom: 16, cursor: "pointer", color: "var(--side-ink-dim)", fontSize: 12.5, width: "100%", fontFamily: "inherit", background: "rgba(255,255,255,.06)", border: "1px solid var(--side-line)", borderRadius: "var(--r-sm)" }}>
+            <Search size={14} /> Search… <span className="kbd" style={{ marginLeft: "auto", background: "rgba(255,255,255,.08)", border: "1px solid rgba(255,255,255,.12)", color: "var(--side-ink-dim)" }}>⌘K</span>
+          </button>
+
+          <nav style={{ display: "flex", flexDirection: "column", gap: 2 }}>
+            {NAV.map(([k, label, Icon]) => (
+              <div key={k} className={"s-navitem" + (navOn(k) ? " on" : "")} onClick={() => go(k)}><Icon size={16} /> {label}</div>
+            ))}
+            <div style={{ margin: "12px 6px", height: 1, background: "var(--side-line)" }} />
+            <div className="eyebrow on-dark" style={{ padding: "2px 11px 8px" }}>Workspace</div>
+            {NAV_WS.map(([k, label, Icon]) => (
+              <div key={k} className={"s-navitem" + (route.name === k ? " on" : "")} onClick={() => go(k)}><Icon size={16} /> {label}</div>
+            ))}
+          </nav>
+
+          <div style={{ marginTop: "auto", paddingTop: 12 }}>
+            <div className="s-navitem" style={{ padding: 10, gap: 10 }} onClick={() => go("settings")}>
+              <Avatar name={user?.name} size={30} />
+              <div style={{ minWidth: 0, flex: 1 }}>
+                <div style={{ fontSize: 12.5, fontWeight: 600, color: "var(--side-ink-bright)", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{user?.name}</div>
+                <div style={{ fontSize: 10.5, color: "var(--side-ink-dim)" }}>CICSIC 2026 · ICN</div>
+              </div>
+              <button className="iconbtn" style={{ marginLeft: "auto", background: "transparent", border: "none", color: "var(--side-ink-dim)", width: 26, height: 26 }} onClick={(e) => { e.stopPropagation(); logout(); }} title="Sign out"><LogOut size={13} /></button>
+            </div>
+          </div>
+        </aside>
+
+        <main style={{ display: "flex", flexDirection: "column", height: "100%", overflow: "hidden", background: "var(--bg)" }}>
+          <header style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "13px 24px", borderBottom: "1px solid var(--line)", background: "var(--surface)", flexShrink: 0 }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+              <button className="iconbtn menubtn" onClick={() => setSidebarOpen(true)}><Menu size={16} /></button>
+              <div style={{ display: "flex", alignItems: "center", gap: 7, fontSize: 13, color: "var(--ink3)" }}>
+                <Atom size={14} color="var(--accent)" />
+                {crumbs.map((c, i) => (
+                  <React.Fragment key={i}>
+                    {i > 0 && <ChevronRight size={13} />}
+                    <span style={{ color: i === crumbs.length - 1 ? "var(--ink)" : "var(--ink3)", fontWeight: i === crumbs.length - 1 ? 600 : 400 }}>{c}</span>
+                  </React.Fragment>
+                ))}
+              </div>
+            </div>
+            <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+              <button className="iconbtn" onClick={() => setPal(true)} title="Search (⌘K)"><Search size={16} /></button>
+              <button className="iconbtn" title="Notifications"><Bell size={16} /></button>
+              <div onClick={() => go("settings")} style={{ cursor: "pointer" }}><Avatar name={user?.name} size={32} /></div>
+            </div>
+          </header>
+
+          <div style={{ flex: 1, minHeight: 0, overflow: "hidden" }}>
+            {route.name === "dashboard"  && <DashboardView go={go} user={user} bookmarks={bookmarks} toggleBookmark={toggleBookmark} />}
+            {route.name === "graph"      && <GraphView go={go} initial={graphInitial} onPersist={(s) => db.set(K.graph, s)} />}
+            {route.name === "hypotheses" && <HypothesesView go={go} bookmarks={bookmarks} toggleBookmark={toggleBookmark} />}
+            {route.name === "hypothesis" && <HypothesisDetail id={route.id} go={go} bookmarks={bookmarks} toggleBookmark={toggleBookmark} />}
+            {route.name === "assistant"  && <AssistantView go={go} user={user} log={log} />}
+            {route.name === "evidence"   && <EvidenceView go={go} />}
+            {route.name === "compound"   && <DossierView id={route.id || "cp-quinine"} kind="compound" go={go} />}
+            {route.name === "target"     && <DossierView id={route.id || "tg-hemoz"} kind="target" go={go} />}
+            {route.name === "workspaces" && <WorkspaceView go={go} bookmarks={bookmarks} toggleBookmark={toggleBookmark} recent={recent} />}
+            {route.name === "settings"   && <SettingsView user={user} logout={logout} prefs={prefs} setPrefs={setPrefs} />}
+          </div>
+        </main>
+
+        <Palette open={pal} onClose={() => setPal(false)} go={go} />
+      </div>
+    </DBContext.Provider>
+  );
+}
+
+export default function App() {
+  const { status, user, login, logout } = useAuth();
+  if (status === "checking") {
+    return (
+      <div className="cu-root" style={{ height: "100vh", display: "grid", placeItems: "center" }}>
+        <style>{CSS}</style>
+        <Loader2 size={22} className="spin" color="var(--accent)" />
+      </div>
+    );
+  }
+  if (status === "guest") return <LoginScreen onLogin={login} />;
+  return (
+    <div className="cu-root">
+      <style>{CSS}</style>
+      <Shell user={user} logout={logout} />
+    </div>
+  );
+}
